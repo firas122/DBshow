@@ -96,6 +96,16 @@ Loading a bundled sample or a URL, then focusing a table, is reflected in the ad
 as `?sample=`/`?url=` and `&table=`. Copying the link (the share icon in the toolbar) and
 opening it elsewhere reproduces the same schema and focused table.
 
+## Language
+
+DBShow is available in **English and French**. Toggle with the language button in
+the left-edge tool dock (or the top-right corner of the home screen before a schema is
+loaded). This covers every piece of UI chrome as well as the linter's generated warning
+titles, messages and suggested fixes — SQL fix snippets themselves are never translated.
+The choice persists in `localStorage`; switching language re-lints the already-loaded
+schema in place rather than requiring a reload. Implemented in `src/lib/i18n/` (`ui.ts`
+for interface strings, `linterText.ts` for the linter's message templates).
+
 ## Controls
 
 Drag to orbit, scroll to zoom, click a table to fly to it, click empty space to deselect.
@@ -131,6 +141,9 @@ src/
       types-util.ts           SQL type -> type family, compatibility rules
     validators/schemaLinter.ts
     diff/schemaDiff.ts          Two SchemaGraphs -> SchemaDiff + tagged view graph
+    i18n/
+      ui.ts                    English/French UI string dictionary + useT()
+      linterText.ts            English/French linter message templates
     samples/                     Bundled demo schemas (ecommerce, blog, saas, library)
     report.ts                    Markdown health-report export
     graph/

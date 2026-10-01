@@ -10,6 +10,31 @@ Notable changes to DBShow, newest first.
   a scale stress-test for the layout) and **Library Catalog** (9 tables,
   fully healthy — Health 100, empty ticker).
 
+## French localisation
+
+- DBShow is now available in **English and French** — toggle with the
+  language button in the left-edge tool dock (also shown on the home
+  screen). Covers every UI string, including the linter's generated warning
+  titles, messages and suggestions; SQL fix snippets are never translated.
+- The chosen language persists in `localStorage`, re-lints the already
+  loaded schema in place (no re-upload needed), and is applied correctly
+  even on a cold load of a shared link or bundled sample.
+
+## Blueprint Console redesign
+
+- Full visual rework: ink-navy ground and a single warm marigold accent
+  replace the glass-panel / neon-on-black look; severities and schema-diff
+  tints read as desaturated ink stamps rather than glowing pills.
+- The top bar is now a corner title-block (schema name, source, health
+  score and legend in one place); the horizontal icon row is now a
+  left-edge vertical tool dock.
+- Search is now a `/`-triggered command palette instead of an
+  always-visible input. The issue ticker reads as ticket-stub chips, and
+  the schema-diff panel is styled as a drafting "change order" sheet.
+- Enlarged the far-distance 3D table label (name + column count, shown
+  before you get close enough for the full column list) — it was legible
+  but small.
+
 ## Schema diffing, mutable warnings, shareable links
 
 - **Schema diff**: compare the loaded schema against a bundled or uploaded

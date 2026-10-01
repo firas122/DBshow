@@ -10,8 +10,8 @@ import { useSchemaLoader } from "@/state/useSchemaLoader";
 const Canvas3D = dynamic(() => import("@/components/Canvas3D"), {
   ssr: false,
   loading: () => (
-    <div className="absolute inset-0 grid place-items-center bg-[#04060d]">
-      <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-400/25 border-t-cyan-400" />
+    <div className="absolute inset-0 grid place-items-center bg-[#0a0e1a]">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#d99a3f]/25 border-t-[#d99a3f]" />
     </div>
   ),
 });
@@ -36,7 +36,7 @@ export default function Page() {
   }, [loadSample, loadUrl]);
 
   return (
-    <main className="relative h-dvh w-screen overflow-hidden bg-[#04060d]">
+    <main className="relative h-dvh w-screen overflow-hidden bg-[#0a0e1a]">
       <Canvas3D />
       <UIOverlay />
     </main>

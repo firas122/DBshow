@@ -1,3 +1,5 @@
+import { getLinterText, type LinterText } from "@/lib/i18n/linterText";
+import type { Locale } from "@/lib/i18n/locale";
 import { areTypesCompatible, familyLabel } from "@/lib/schema/types-util";
 import type {
   Column,
@@ -97,7 +99,7 @@ function findCycles(adjacency: Map<string, Set<string>>, maxCycles = 12, maxDept
   return cycles;
 }
 
-function checkDanglingReferences(graph: SchemaGraph, tablesById: Map<string, Table>) {
+function checkDanglingReferences(graph: SchemaGraph, tablesById: Map<string, Table>, L: LinterText) {
   for (const relation of graph.relations) {
     if (!relation.dangling) continue;
 
@@ -105,6 +107,7 @@ function checkDanglingReferences(graph: SchemaGraph, tablesById: Map<string, Tab
     const targetTable = tablesById.get(relation.targetTable);
     const missingTable = !targetTable;
 
+    const source = `${relation.sourceTable}.${relation.sourceColumn}`;
     const target = `${relation.targetTable}.${relation.targetColumn || "?"}`;
     attach(
       graph,
@@ -112,13 +115,13 @@ function checkDanglingReferences(graph: SchemaGraph, tablesById: Map<string, Tab
         id: `dangling:${relation.id}`,
         kind: "dangling-reference",
         severity: "error",
-        title: "Dangling foreign key reference",
+        title: L.dangling.title,
         message: missingTable
-          ? `${relation.sourceTable}.${relation.sourceColumn} references table "${relation.targetTable}", which is not defined in this schema.`
-          : `${relation.sourceTable}.${relation.sourceColumn} references column "${target}", which does not exist on "${relation.targetTable}".`,
+          ? L.dangling.messageMissingTable(source, relation.targetTable)
+          : L.dangling.messageMissingColumn(source, target, relation.targetTable),
         suggestion: missingTable
-          ? `Add the missing CREATE TABLE for "${relation.targetTable}", or drop the constraint if the table was intentionally removed.`
-          : `Point the constraint at an existing column on "${relation.targetTable}" — most likely its primary key.`,
+          ? L.dangling.suggestionMissingTable(relation.targetTable)
+          : L.dangling.suggestionMissingColumn(relation.targetTable),
         fix: sourceTable
           ? `ALTER TABLE ${quoteIdent(sourceTable.name)} DROP CONSTRAINT fk_${relation.sourceTable}_${relation.sourceColumn};`
           : undefined,
@@ -132,7 +135,7 @@ function checkDanglingReferences(graph: SchemaGraph, tablesById: Map<string, Tab
   }
 }
 
-function checkTypeMismatches(graph: SchemaGraph, tablesById: Map<string, Table>) {
+function checkTypeMismatches(graph: SchemaGraph, tablesById: Map<string, Table>, L: LinterText) {
   for (const relation of graph.relations) {
     if (relation.dangling || relation.kind !== "explicit") continue;
 
@@ -149,14 +152,18 @@ function checkTypeMismatches(graph: SchemaGraph, tablesById: Map<string, Table>)
           id: `type-mismatch:${relation.id}`,
           kind: "type-mismatch",
           severity: "warning",
-          title: "Foreign key type mismatch",
-          message: `${sourceTable.name}.${sourceColumn.name} is ${sourceColumn.rawType} (${familyLabel(
-            sourceColumn.family,
-          )}) but references ${targetTable.name}.${targetColumn.name}, which is ${targetColumn.rawType} (${familyLabel(
-            targetColumn.family,
-          )}).`,
-          suggestion:
-            "Mismatched families force an implicit cast on every join, which silently disables index usage and can fail outright on stricter engines. Align both sides on the parent's type.",
+          title: L.typeMismatch.title,
+          message: L.typeMismatch.message(
+            sourceTable.name,
+            sourceColumn.name,
+            sourceColumn.rawType,
+            familyLabel(sourceColumn.family),
+            targetTable.name,
+            targetColumn.name,
+            targetColumn.rawType,
+            familyLabel(targetColumn.family),
+          ),
+          suggestion: L.typeMismatch.suggestion,
           fix: `ALTER TABLE ${quoteIdent(sourceTable.name)} ALTER COLUMN ${quoteIdent(
             sourceColumn.name,
           )} TYPE ${targetColumn.rawType};`,
@@ -184,9 +191,16 @@ function checkTypeMismatches(graph: SchemaGraph, tablesById: Map<string, Table>)
           id: `type-width:${relation.id}`,
           kind: "type-mismatch",
           severity: "info",
-          title: "Foreign key is narrower than its parent",
-          message: `${sourceTable.name}.${sourceColumn.name} holds ${sourceColumn.length} characters but ${targetTable.name}.${targetColumn.name} allows ${targetColumn.length}.`,
-          suggestion: `Widen the child column to ${targetColumn.rawType} so long parent keys cannot be truncated.`,
+          title: L.typeNarrower.title,
+          message: L.typeNarrower.message(
+            sourceTable.name,
+            sourceColumn.name,
+            sourceColumn.length,
+            targetTable.name,
+            targetColumn.name,
+            targetColumn.length,
+          ),
+          suggestion: L.typeNarrower.suggestion(targetColumn.rawType),
           fix: `ALTER TABLE ${quoteIdent(sourceTable.name)} ALTER COLUMN ${quoteIdent(
             sourceColumn.name,
           )} TYPE ${targetColumn.rawType};`,
@@ -201,7 +215,7 @@ function checkTypeMismatches(graph: SchemaGraph, tablesById: Map<string, Table>)
   }
 }
 
-function checkMissingIndexes(graph: SchemaGraph, tablesById: Map<string, Table>) {
+function checkMissingIndexes(graph: SchemaGraph, tablesById: Map<string, Table>, L: LinterText) {
   for (const relation of graph.relations) {
     if (relation.dangling || relation.kind !== "explicit") continue;
     const table = tablesById.get(relation.sourceTable);
@@ -214,10 +228,9 @@ function checkMissingIndexes(graph: SchemaGraph, tablesById: Map<string, Table>)
         id: `missing-index:${relation.id}`,
         kind: "missing-index",
         severity: "warning",
-        title: "Unindexed foreign key",
-        message: `${table.name}.${column.name} is a foreign key with no supporting index.`,
-        suggestion:
-          "Joins and parent-side deletes will fall back to a full scan of this table. Add an index whose leading column is the foreign key.",
+        title: L.missingIndex.title,
+        message: L.missingIndex.message(table.name, column.name),
+        suggestion: L.missingIndex.suggestion,
         fix: `CREATE INDEX idx_${table.id}_${column.name.toLowerCase()} ON ${quoteIdent(
           table.name,
         )} (${quoteIdent(column.name)});`,
@@ -239,6 +252,7 @@ interface ImplicitCandidate {
 function checkImplicitForeignKeys(
   graph: SchemaGraph,
   tablesById: Map<string, Table>,
+  L: LinterText,
 ): ImplicitCandidate[] {
   const explicitKeys = new Set(
     graph.relations.map((r) => `${r.sourceTable}.${r.sourceColumn.toLowerCase()}`),
@@ -307,12 +321,9 @@ function checkImplicitForeignKeys(
         id: `implicit-fk:${relation.id}`,
         kind: "implicit-fk",
         severity: "warning",
-        title: "Suggested relation — missing foreign key",
-        message: `${table.name}.${column.name} looks like a reference to ${target.name}.${targetColumn.name}${
-          typesAgree ? "" : " (though the column types differ)"
-        }, but no FOREIGN KEY constraint declares it.`,
-        suggestion:
-          "Without the constraint the database cannot stop orphaned rows, and tools that read the schema will not see this relationship. Declare it explicitly if the link is real.",
+        title: L.implicitFk.title,
+        message: L.implicitFk.message(table.name, column.name, target.name, targetColumn.name, !typesAgree),
+        suggestion: L.implicitFk.suggestion,
         fix: `ALTER TABLE ${quoteIdent(table.name)} ADD CONSTRAINT fk_${table.id}_${column.name.toLowerCase()}\n  FOREIGN KEY (${quoteIdent(
           column.name,
         )}) REFERENCES ${quoteIdent(target.name)} (${quoteIdent(targetColumn.name)});`,
@@ -328,7 +339,7 @@ function checkImplicitForeignKeys(
   return candidates;
 }
 
-function checkCircularDependencies(graph: SchemaGraph, tablesById: Map<string, Table>) {
+function checkCircularDependencies(graph: SchemaGraph, tablesById: Map<string, Table>, L: LinterText) {
   const adjacency = buildAdjacency(graph);
   const cycles = findCycles(adjacency);
 
@@ -354,15 +365,13 @@ function checkCircularDependencies(graph: SchemaGraph, tablesById: Map<string, T
       id: `cycle:${cycle.join(">")}`,
       kind: "circular-dependency",
       severity: isSelfReference ? "info" : breakable ? "warning" : "error",
-      title: isSelfReference ? "Self-referencing table" : "Circular dependency",
-      message: isSelfReference
-        ? `${names[0]} references itself, forming a hierarchy.`
-        : `Tables form a dependency cycle: ${path}.`,
+      title: isSelfReference ? L.circular.titleSelf : L.circular.titleCycle,
+      message: isSelfReference ? L.circular.messageSelf(names[0]) : L.circular.messageCycle(path),
       suggestion: isSelfReference
-        ? "Fine for trees and hierarchies — just make sure the column is nullable so root rows can be inserted, and that recursive queries are depth-limited."
+        ? L.circular.suggestionSelf
         : breakable
-          ? "Rows cannot be inserted in any single order without a deferrable constraint. At least one key on the cycle is nullable, so insert that side as NULL first and update it afterwards. Watch for cascade deletes looping."
-          : "Every key on this cycle is NOT NULL, so no insertion order satisfies all constraints. Make one of them nullable, mark it DEFERRABLE INITIALLY DEFERRED, or break the cycle with a join table.",
+          ? L.circular.suggestionBreakable
+          : L.circular.suggestionUnbreakable,
       tableIds: cycle,
     };
 
@@ -382,7 +391,7 @@ function checkCircularDependencies(graph: SchemaGraph, tablesById: Map<string, T
   }
 }
 
-function checkTableHygiene(graph: SchemaGraph) {
+function checkTableHygiene(graph: SchemaGraph, L: LinterText) {
   const connected = new Set<string>();
   for (const relation of graph.relations) {
     connected.add(relation.sourceTable);
@@ -395,10 +404,9 @@ function checkTableHygiene(graph: SchemaGraph) {
         id: `no-pk:${table.id}`,
         kind: "no-primary-key",
         severity: "warning",
-        title: "Table has no primary key",
-        message: `${table.name} declares no PRIMARY KEY, so rows cannot be addressed uniquely.`,
-        suggestion:
-          "Replication, upserts and most ORMs need a stable row identity. Add a surrogate key or promote an existing unique column.",
+        title: L.noPrimaryKey.title,
+        message: L.noPrimaryKey.message(table.name),
+        suggestion: L.noPrimaryKey.suggestion,
         fix: `ALTER TABLE ${quoteIdent(table.name)} ADD PRIMARY KEY (${quoteIdent(
           table.columns[0]?.name ?? "id",
         )});`,
@@ -413,10 +421,9 @@ function checkTableHygiene(graph: SchemaGraph) {
         id: `orphan:${table.id}`,
         kind: "orphan-table",
         severity: "info",
-        title: "Isolated table",
-        message: `${table.name} has no incoming or outgoing relationships.`,
-        suggestion:
-          "Expected for lookup, config or audit tables. Otherwise its links are probably enforced in application code rather than in the schema.",
+        title: L.orphanTable.title,
+        message: L.orphanTable.message(table.name),
+        suggestion: L.orphanTable.suggestion,
         tableIds: [table.id],
       };
       graph.warnings.push(warning);
@@ -433,8 +440,14 @@ function severityRank(severity: WarningSeverity): number {
  * Runs every check and returns the same graph instance with warnings attached.
  * Implicit foreign keys discovered during linting are added to `relations` so
  * the 3D scene can draw them as dashed "suggested" edges.
+ *
+ * Re-runnable on the same graph (e.g. to re-lint in another `locale`): implicit
+ * relations from a previous run are dropped first so they aren't duplicated.
  */
-export function lintSchema(graph: SchemaGraph): SchemaGraph {
+export function lintSchema(graph: SchemaGraph, locale: Locale = "en"): SchemaGraph {
+  const L = getLinterText(locale);
+
+  graph.relations = graph.relations.filter((relation) => relation.kind !== "implicit");
   graph.warnings = [];
   for (const table of graph.tables) table.warnings = [];
   for (const relation of graph.relations) {
@@ -444,11 +457,11 @@ export function lintSchema(graph: SchemaGraph): SchemaGraph {
 
   const tablesById = new Map(graph.tables.map((t) => [t.id, t]));
 
-  checkDanglingReferences(graph, tablesById);
-  checkTypeMismatches(graph, tablesById);
-  checkMissingIndexes(graph, tablesById);
+  checkDanglingReferences(graph, tablesById, L);
+  checkTypeMismatches(graph, tablesById, L);
+  checkMissingIndexes(graph, tablesById, L);
 
-  const implicit = checkImplicitForeignKeys(graph, tablesById);
+  const implicit = checkImplicitForeignKeys(graph, tablesById, L);
   for (const { relation, warning } of implicit) {
     relation.warnings.push(warning);
     graph.warnings.push(warning);
@@ -457,8 +470,8 @@ export function lintSchema(graph: SchemaGraph): SchemaGraph {
   }
 
   // Cycles run last so suggested relations are taken into account.
-  checkCircularDependencies(graph, tablesById);
-  checkTableHygiene(graph);
+  checkCircularDependencies(graph, tablesById, L);
+  checkTableHygiene(graph, L);
 
   for (const relation of graph.relations) {
     let health: Relation["health"] = relation.kind === "implicit" ? "warning" : "ok";

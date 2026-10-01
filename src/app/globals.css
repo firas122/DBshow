@@ -1,10 +1,22 @@
 @import "tailwindcss";
 
+/* Blueprint Console — ink-navy ground, one warm marigold accent, ink-stamp
+   severity colours. Panels are flat drafting sheets, not frosted glass. */
 @theme {
-  --color-neon-cyan: #22d3ee;
-  --color-neon-gold: #fbbf24;
-  --color-neon-amber: #f59e0b;
-  --color-neon-rose: #fb7185;
+  --color-ink: #0a0e1a;
+  --color-ink-raised: #10172a;
+  --color-ink-raised-2: #161f38;
+  --color-hairline: #64748b;
+  --color-marigold: #d99a3f;
+  --color-marigold-light: #e8b565;
+
+  --color-stamp-error: #b85c52;
+  --color-stamp-warning: #ad8a42;
+  --color-stamp-info: #5b7fa6;
+  --color-stamp-added: #5f8f6c;
+  --color-stamp-removed: #b85c52;
+  --color-stamp-modified: #8572a8;
+
   --font-mono: "Cascadia Code", "JetBrains Mono", ui-monospace, Consolas, monospace;
 }
 
@@ -19,44 +31,78 @@ body {
 
 body {
   margin: 0;
-  background-color: #04060d;
+  background-color: #0a0e1a;
   color: #e2e8f0;
   font-family: "Segoe UI", Inter, system-ui, -apple-system, sans-serif;
   overflow: hidden;
   overscroll-behavior: none;
 }
 
-/* Frosted panel used by the top bar and both drawers. */
-@utility glass {
-  background-color: color-mix(in oklab, #0b1220 82%, transparent);
-  backdrop-filter: blur(18px) saturate(140%);
-  border-color: color-mix(in oklab, #38bdf8 18%, transparent);
+/* Flat drafting-sheet panel used by the title-block, dock and drawers.
+   No blur, no translucency — a sheet of paper laid over the scene. */
+@utility panel {
+  background-color: #0e1424;
+  border-color: color-mix(in oklab, var(--color-hairline) 22%, transparent);
+}
+
+/* Faint graph-paper texture for the corner title-block. */
+@utility blueprint-grid {
+  background-image:
+    linear-gradient(color-mix(in oklab, var(--color-marigold) 7%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklab, var(--color-marigold) 7%, transparent) 1px, transparent 1px);
+  background-size: 12px 12px;
+}
+
+/* Corner tick marks — the drafting-table signature, used once on the title-block. */
+@utility corner-ticks {
+  position: relative;
+
+  &::before,
+  &::after {
+    content: "";
+    position: absolute;
+    width: 7px;
+    height: 7px;
+    pointer-events: none;
+  }
+  &::before {
+    top: -1px;
+    left: -1px;
+    border-top: 1.5px solid var(--color-marigold);
+    border-left: 1.5px solid var(--color-marigold);
+  }
+  &::after {
+    bottom: -1px;
+    right: -1px;
+    border-bottom: 1.5px solid var(--color-marigold);
+    border-right: 1.5px solid var(--color-marigold);
+  }
 }
 
 @utility scrollbar-thin {
   scrollbar-width: thin;
-  scrollbar-color: rgba(34, 211, 238, 0.32) transparent;
+  scrollbar-color: color-mix(in oklab, var(--color-marigold) 35%, transparent) transparent;
 
   &::-webkit-scrollbar {
     width: 8px;
     height: 8px;
   }
   &::-webkit-scrollbar-thumb {
-    background-color: rgba(34, 211, 238, 0.28);
-    border-radius: 999px;
+    background-color: color-mix(in oklab, var(--color-marigold) 30%, transparent);
+    border-radius: 2px;
   }
   &::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(34, 211, 238, 0.45);
+    background-color: color-mix(in oklab, var(--color-marigold) 45%, transparent);
   }
   &::-webkit-scrollbar-track {
     background: transparent;
   }
 }
 
-@keyframes drawer-in {
+@keyframes sheet-in {
   from {
     opacity: 0;
-    transform: translateX(24px);
+    transform: translateX(16px);
   }
   to {
     opacity: 1;
@@ -67,7 +113,7 @@ body {
 @keyframes rise-in {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -75,13 +121,14 @@ body {
   }
 }
 
-@keyframes glow-pulse {
-  0%,
-  100% {
-    opacity: 0.55;
+@keyframes stamp-in {
+  from {
+    opacity: 0;
+    transform: scale(1.04);
   }
-  50% {
+  to {
     opacity: 1;
+    transform: scale(1);
   }
 }
 
@@ -100,16 +147,16 @@ body {
   }
 }
 
-.animate-drawer-in {
-  animation: drawer-in 0.26s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+.animate-sheet-in {
+  animation: sheet-in 0.18s cubic-bezier(0.4, 0, 0.2, 1) both;
 }
 
 .animate-rise-in {
-  animation: rise-in 0.3s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+  animation: rise-in 0.18s cubic-bezier(0.4, 0, 0.2, 1) both;
 }
 
-.animate-glow-pulse {
-  animation: glow-pulse 2s ease-in-out infinite;
+.animate-stamp-in {
+  animation: stamp-in 0.15s cubic-bezier(0.4, 0, 0.2, 1) both;
 }
 
 /* drei's <Html> wrapper should never intercept orbit drags. */

@@ -371,16 +371,16 @@ export default function RelationLine3D({
       {(isHovered || showEdgeLabels) && (
         <group ref={groupRef}>
           <Html center distanceFactor={18} zIndexRange={[20, 0]} style={{ pointerEvents: "none" }}>
-            <div className="whitespace-nowrap rounded-md border border-white/15 bg-slate-950/90 px-2 py-1 text-[11px] font-medium text-slate-200 shadow-lg backdrop-blur">
-              <span className="text-cyan-300">
+            <div className="whitespace-nowrap rounded-sm border border-white/15 bg-[#0e1424] px-2 py-1 text-[11px] font-medium text-slate-200 shadow-lg">
+              <span className="text-[#67e0f2]">
                 {sourceTable.name}.{relation.sourceColumn}
               </span>
               <span className="mx-1 text-slate-500">→</span>
-              <span className="text-amber-300">
+              <span className="text-[#fbbf24]">
                 {targetTable.name}.{relation.targetColumn}
               </span>
               {relation.kind === "implicit" && (
-                <span className="ml-1.5 rounded bg-amber-500/20 px-1 text-amber-300">suggested</span>
+                <span className="ml-1.5 rounded-sm bg-[#f59e0b]/20 px-1 text-[#fbbf24]">suggested</span>
               )}
             </div>
           </Html>

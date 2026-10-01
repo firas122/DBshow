@@ -1,23 +1,27 @@
-import { SEVERITY_LABEL } from "@/lib/theme";
+import type { Locale } from "@/lib/i18n/locale";
+import { UI_STRINGS } from "@/lib/i18n/ui";
 import { summarizeHealth } from "@/lib/validators/schemaLinter";
 import type { SchemaGraph, WarningSeverity } from "@/lib/types";
 
 const SEVERITY_ORDER: WarningSeverity[] = ["error", "warning", "info"];
 
 /** Builds a shareable Markdown snapshot of the current health report. */
-export function buildHealthReportMarkdown(graph: SchemaGraph, mutedIds: Set<string> = new Set()): string {
+export function buildHealthReportMarkdown(
+  graph: SchemaGraph,
+  mutedIds: Set<string> = new Set(),
+  locale: Locale = "en",
+): string {
+  const t = UI_STRINGS[locale];
   const visible = graph.warnings.filter((w) => !mutedIds.has(w.id));
   const summary = summarizeHealth(graph, mutedIds);
   const lines: string[] = [];
 
-  lines.push(`# Schema health report — ${graph.name}`);
+  lines.push(`# ${t.report.heading(graph.name)}`);
   lines.push("");
-  lines.push(
-    `**Score:** ${summary.score}/100 — ${summary.errors} error(s) · ${summary.warnings} warning(s) · ${summary.info} note(s)`,
-  );
-  lines.push(`_${graph.tables.length} tables · ${graph.relations.length} relations_`);
+  lines.push(t.report.score(summary.score, summary.errors, summary.warnings, summary.info));
+  lines.push(`_${t.report.tablesRelations(graph.tables.length, graph.relations.length)}_`);
   if (mutedIds.size > 0) {
-    lines.push(`_${mutedIds.size} muted warning(s) excluded from the score above._`);
+    lines.push(`_${t.report.mutedExcluded(mutedIds.size)}_`);
   }
   lines.push("");
 
@@ -25,17 +29,17 @@ export function buildHealthReportMarkdown(graph: SchemaGraph, mutedIds: Set<stri
     const items = visible.filter((w) => w.severity === severity);
     if (items.length === 0) continue;
 
-    lines.push(`## ${SEVERITY_LABEL[severity]}s (${items.length})`);
+    lines.push(`## ${t.severityLabel[severity]}s (${items.length})`);
     lines.push("");
     for (const warning of items) {
       lines.push(`### ${warning.title}`);
       lines.push(
-        `- **Where:** ${warning.tableIds.join(", ")}${warning.columnName ? ` (${warning.columnName})` : ""}`,
+        `- **${t.report.where}:** ${warning.tableIds.join(", ")}${warning.columnName ? ` (${warning.columnName})` : ""}`,
       );
-      lines.push(`- **Issue:** ${warning.message}`);
-      lines.push(`- **Why it matters:** ${warning.suggestion}`);
+      lines.push(`- **${t.report.issue}:** ${warning.message}`);
+      lines.push(`- **${t.report.whyItMatters}:** ${warning.suggestion}`);
       if (warning.fix) {
-        lines.push("- **Suggested fix:**");
+        lines.push(`- **${t.report.suggestedFix}:**`);
         lines.push("  ```sql");
         for (const fixLine of warning.fix.split("\n")) lines.push(`  ${fixLine}`);
         lines.push("  ```");
@@ -45,7 +49,7 @@ export function buildHealthReportMarkdown(graph: SchemaGraph, mutedIds: Set<stri
   }
 
   if (visible.length === 0) {
-    lines.push("No issues detected — every relation resolves, matches its parent's type and is indexed.");
+    lines.push(t.report.noIssues);
   }
 
   return lines.join("\n");

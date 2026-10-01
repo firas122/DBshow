@@ -4,7 +4,9 @@ import { create } from "zustand";
 
 import { diffSchemas, type SchemaDiff } from "@/lib/diff/schemaDiff";
 import { computeLayout, type LayoutMode, type PositionMap } from "@/lib/graph/layouts";
+import type { Locale } from "@/lib/i18n/locale";
 import type { Relation, SchemaGraph, Table } from "@/lib/types";
+import { lintSchema } from "@/lib/validators/schemaLinter";
 
 export type DrawerMode = "none" | "health" | "inspector" | "import" | "compare" | "diff";
 
@@ -22,6 +24,7 @@ interface SchemaState {
   layout: LayoutMode;
   status: "empty" | "loading" | "ready" | "error";
   error: string | null;
+  locale: Locale;
 
   selectedTableId: string | null;
   hoveredTableId: string | null;
@@ -54,6 +57,7 @@ interface SchemaState {
   setError: (message: string) => void;
   setGraph: (graph: SchemaGraph) => void;
   clearGraph: () => void;
+  setLocale: (locale: Locale) => void;
   setLayout: (layout: LayoutMode) => void;
   reflow: () => void;
 
@@ -92,6 +96,7 @@ export const useSchemaStore = create<SchemaState>((set, get) => ({
   layout: "force",
   status: "empty",
   error: null,
+  locale: "en",
 
   selectedTableId: null,
   hoveredTableId: null,
@@ -118,9 +123,13 @@ export const useSchemaStore = create<SchemaState>((set, get) => ({
 
   setError: (message) => set({ status: "error", error: message }),
 
+  // Re-lints against the store's current locale regardless of what locale the
+  // parse pipeline used: a sample/URL load kicked off before the locale
+  // hydration effect (see UIOverlay) applies a stored preference can otherwise
+  // land here already linted in the wrong language.
   setGraph: (graph) =>
     set((state) => ({
-      graph,
+      graph: lintSchema(graph, state.locale),
       positions: computeLayout(graph, state.layout),
       status: "ready",
       error: null,
@@ -147,6 +156,21 @@ export const useSchemaStore = create<SchemaState>((set, get) => ({
       drawer: "none",
       search: "",
     }),
+
+  // Warning text is baked into the graph at lint time, so switching language
+  // re-lints the already-parsed graph (and the diff baseline, if comparing)
+  // in place rather than re-parsing from source. Table/relation structure and
+  // ids are locale-independent, so positions and the diff itself don't change.
+  setLocale: (locale) => {
+    const { graph, compare } = get();
+    set({
+      locale,
+      graph: graph ? lintSchema({ ...graph }, locale) : graph,
+      compare: compare
+        ? { ...compare, viewGraph: lintSchema({ ...compare.viewGraph }, locale) }
+        : compare,
+    });
+  },
 
   // Both of these bump resetNonce so the camera re-frames the new arrangement
   // instead of staying pointed wherever it was. They lay out whichever graph

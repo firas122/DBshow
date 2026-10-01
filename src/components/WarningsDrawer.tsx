@@ -16,21 +16,12 @@ import {
   X,
 } from "lucide-react";
 
+import { useT } from "@/lib/i18n/useT";
 import { buildHealthReportMarkdown, downloadTextFile } from "@/lib/report";
-import { SEVERITY_CLASSES, SEVERITY_LABEL } from "@/lib/theme";
+import { SEVERITY_CLASSES } from "@/lib/theme";
 import { summarizeHealth } from "@/lib/validators/schemaLinter";
 import { useSchemaStore } from "@/state/useSchemaStore";
-import type { SchemaWarning, WarningKind, WarningSeverity } from "@/lib/types";
-
-const KIND_LABEL: Record<WarningKind, string> = {
-  "type-mismatch": "Type mismatch",
-  "implicit-fk": "Suggested relation",
-  "missing-index": "Missing index",
-  "circular-dependency": "Circular dependency",
-  "dangling-reference": "Dangling reference",
-  "no-primary-key": "No primary key",
-  "orphan-table": "Isolated table",
-};
+import type { SchemaWarning, WarningSeverity } from "@/lib/types";
 
 const SEVERITY_ICON = {
   error: AlertCircle,
@@ -40,7 +31,8 @@ const SEVERITY_ICON = {
 
 type Filter = "all" | WarningSeverity | "muted";
 
-function CopyButton({ value, label = "Copy" }: { value: string; label?: string }) {
+function CopyButton({ value, label }: { value: string; label?: string }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
 
   return (
@@ -56,15 +48,16 @@ function CopyButton({ value, label = "Copy" }: { value: string; label?: string }
           setCopied(false);
         }
       }}
-      className="flex items-center gap-1 rounded-md border border-white/10 bg-white/5 px-1.5 py-1 text-[10px] font-medium text-slate-400 transition hover:border-cyan-400/40 hover:text-cyan-300"
+      className="flex items-center gap-1 rounded-sm border border-hairline/20 bg-white/5 px-1.5 py-1 text-[10px] font-medium text-slate-400 transition hover:border-marigold/40 hover:text-marigold-light"
     >
       {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-      {copied ? "Copied" : label}
+      {copied ? t.warningsDrawer.copied : (label ?? t.warningsDrawer.copy)}
     </button>
   );
 }
 
 function WarningCard({ warning }: { warning: SchemaWarning }) {
+  const t = useT();
   const activeWarningId = useSchemaStore((state) => state.activeWarningId);
   const setActiveWarning = useSchemaStore((state) => state.setActiveWarning);
   const focusTable = useSchemaStore((state) => state.focusTable);
@@ -90,8 +83,8 @@ function WarningCard({ warning }: { warning: SchemaWarning }) {
   return (
     <div
       ref={ref}
-      className={`overflow-hidden rounded-xl border transition ${muted ? "opacity-50" : ""} ${
-        expanded ? `${classes.border} ${classes.bg}` : "border-white/8 bg-white/[0.02] hover:bg-white/[0.05]"
+      className={`overflow-hidden rounded-sm border transition ${muted ? "opacity-50" : ""} ${
+        expanded ? `${classes.border} ${classes.bg}` : "border-hairline/15 bg-white/[0.02] hover:bg-white/[0.05]"
       }`}
     >
       <div
@@ -115,11 +108,11 @@ function WarningCard({ warning }: { warning: SchemaWarning }) {
             <span
               className={`shrink-0 rounded px-1.5 py-px text-[10px] font-medium ${classes.bg} ${classes.text}`}
             >
-              {KIND_LABEL[warning.kind]}
+              {t.kindLabel[warning.kind]}
             </span>
             {muted && (
               <span className="shrink-0 rounded bg-white/10 px-1.5 py-px text-[10px] font-medium text-slate-400">
-                Muted
+                {t.warningsDrawer.mutedBadge}
               </span>
             )}
           </span>
@@ -130,7 +123,7 @@ function WarningCard({ warning }: { warning: SchemaWarning }) {
         </span>
         <button
           type="button"
-          title={muted ? "Unmute — bring back into the ticker and score" : "Mute — hide from the ticker and score"}
+          title={muted ? t.warningsDrawer.unmuteTooltip : t.warningsDrawer.muteTooltip}
           onClick={(event) => {
             event.stopPropagation();
             toggleMuteWarning(warning.id);
@@ -147,25 +140,25 @@ function WarningCard({ warning }: { warning: SchemaWarning }) {
       </div>
 
       {expanded && (
-        <div className="animate-rise-in space-y-3 border-t border-white/8 px-3 py-3">
+        <div className="animate-rise-in space-y-3 border-t border-hairline/15 px-3 py-3">
           <p className="text-xs leading-relaxed text-slate-300">{warning.message}</p>
 
-          <div className="rounded-lg border border-white/8 bg-slate-950/50 px-2.5 py-2">
+          <div className="rounded-sm border border-hairline/15 bg-ink/60 px-2.5 py-2">
             <p className="mb-1 text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
-              Why it matters
+              {t.warningsDrawer.whyItMatters}
             </p>
             <p className="text-xs leading-relaxed text-slate-400">{warning.suggestion}</p>
           </div>
 
           {warning.fix && (
-            <div className="rounded-lg border border-white/8 bg-slate-950/50">
-              <div className="flex items-center justify-between border-b border-white/8 px-2.5 py-1.5">
+            <div className="rounded-sm border border-hairline/15 bg-ink/60">
+              <div className="flex items-center justify-between border-b border-hairline/15 px-2.5 py-1.5">
                 <span className="text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
-                  Suggested fix
+                  {t.warningsDrawer.suggestedFix}
                 </span>
                 <CopyButton value={warning.fix} />
               </div>
-              <pre className="scrollbar-thin overflow-x-auto px-2.5 py-2 font-mono text-[11px] leading-relaxed whitespace-pre text-cyan-200/90">
+              <pre className="scrollbar-thin overflow-x-auto px-2.5 py-2 font-mono text-[11px] leading-relaxed whitespace-pre text-marigold-light/90">
                 {warning.fix}
               </pre>
             </div>
@@ -174,10 +167,10 @@ function WarningCard({ warning }: { warning: SchemaWarning }) {
           <button
             type="button"
             onClick={reveal}
-            className="flex items-center gap-1.5 rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-2.5 py-1.5 text-[11px] font-medium text-cyan-200 transition hover:bg-cyan-400/20"
+            className="flex items-center gap-1.5 rounded-sm border border-marigold/30 bg-marigold/10 px-2.5 py-1.5 text-[11px] font-medium text-marigold-light transition hover:bg-marigold/20"
           >
             <Crosshair className="h-3.5 w-3.5" />
-            Show in 3D
+            {t.warningsDrawer.showIn3d}
           </button>
         </div>
       )}
@@ -186,6 +179,8 @@ function WarningCard({ warning }: { warning: SchemaWarning }) {
 }
 
 export default function WarningsDrawer() {
+  const t = useT();
+  const locale = useSchemaStore((state) => state.locale);
   const graph = useSchemaStore((state) => state.graph);
   const drawer = useSchemaStore((state) => state.drawer);
   const closeDrawer = useSchemaStore((state) => state.closeDrawer);
@@ -206,68 +201,68 @@ export default function WarningsDrawer() {
   if (drawer !== "health" || !graph || !summary || !rawSummary) return null;
 
   const scoreTone =
-    summary.score >= 85 ? "text-emerald-300" : summary.score >= 60 ? "text-amber-300" : "text-rose-300";
+    summary.score >= 85 ? "text-stamp-added" : summary.score >= 60 ? "text-stamp-warning" : "text-stamp-error";
 
   const filters: Array<{ id: Filter; label: string; count: number }> = [
-    { id: "all", label: "All", count: graph.warnings.length },
-    { id: "error", label: "Errors", count: rawSummary.errors },
-    { id: "warning", label: "Warnings", count: rawSummary.warnings },
-    { id: "info", label: "Notes", count: rawSummary.info },
-    { id: "muted", label: "Muted", count: mutedWarningIds.length },
+    { id: "all", label: t.warningsDrawer.filters.all, count: graph.warnings.length },
+    { id: "error", label: t.warningsDrawer.filters.errors, count: rawSummary.errors },
+    { id: "warning", label: t.warningsDrawer.filters.warnings, count: rawSummary.warnings },
+    { id: "info", label: t.warningsDrawer.filters.notes, count: rawSummary.info },
+    { id: "muted", label: t.warningsDrawer.filters.muted, count: mutedWarningIds.length },
   ];
 
   const fixableCount = warnings.filter((w) => w.fix).length;
   const copyAllFixes = () => warnings.filter((w) => w.fix).map((w) => w.fix).join("\n\n");
   const exportReport = () => {
     const filename = `${graph.name.replace(/[^a-z0-9_-]+/gi, "_").toLowerCase()}-health-report.md`;
-    downloadTextFile(filename, buildHealthReportMarkdown(graph, mutedSet));
+    downloadTextFile(filename, buildHealthReportMarkdown(graph, mutedSet, locale));
   };
 
   return (
-    <aside className="animate-drawer-in glass pointer-events-auto absolute top-0 right-0 bottom-0 z-30 flex w-full max-w-[26rem] flex-col border-l">
-      <header className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-3.5">
+    <aside className="animate-sheet-in panel pointer-events-auto absolute top-0 right-0 bottom-0 z-30 flex w-full max-w-[26rem] flex-col border-l">
+      <header className="flex items-start justify-between gap-3 border-b border-hairline/15 px-4 py-3.5">
         <div className="min-w-0">
           <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-100">
-            <ShieldCheck className="h-4 w-4 text-cyan-300" />
-            Relations Health &amp; Warnings
+            <ShieldCheck className="h-4 w-4 text-marigold-light" />
+            {t.warningsDrawer.title}
           </h2>
           <p className="mt-0.5 truncate text-xs text-slate-400">
-            {graph.name} · {graph.tables.length} tables · {graph.relations.length} relations
+            {graph.name} · {t.titleBlock.tablesRelations(graph.tables.length, graph.relations.length)}
           </p>
         </div>
         <button
           type="button"
           onClick={closeDrawer}
-          aria-label="Close health report"
-          className="rounded-lg p-1.5 text-slate-400 transition hover:bg-white/10 hover:text-slate-100"
+          aria-label={t.warningsDrawer.closeAria}
+          className="rounded-sm p-1.5 text-slate-400 transition hover:bg-white/10 hover:text-slate-100"
         >
           <X className="h-4 w-4" />
         </button>
       </header>
 
-      <div className="border-b border-white/10 px-4 py-3">
+      <div className="border-b border-hairline/15 px-4 py-3">
         <div className="flex items-end justify-between">
           <div>
             <p className="text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
-              Schema health
+              {t.warningsDrawer.schemaHealth}
             </p>
-            <p className={`text-3xl font-semibold tabular-nums ${scoreTone}`}>
+            <p className={`font-mono text-3xl font-semibold tabular-nums ${scoreTone}`}>
               {summary.score}
               <span className="ml-1 text-sm font-normal text-slate-500">/ 100</span>
             </p>
           </div>
           <div className="flex gap-3 text-right text-xs">
             <div>
-              <p className="font-semibold text-rose-300 tabular-nums">{summary.errors}</p>
-              <p className="text-[10px] text-slate-500">errors</p>
+              <p className="font-semibold text-stamp-error tabular-nums">{summary.errors}</p>
+              <p className="text-[10px] text-slate-500">{t.warningsDrawer.errors}</p>
             </div>
             <div>
-              <p className="font-semibold text-amber-300 tabular-nums">{summary.warnings}</p>
-              <p className="text-[10px] text-slate-500">warnings</p>
+              <p className="font-semibold text-stamp-warning tabular-nums">{summary.warnings}</p>
+              <p className="text-[10px] text-slate-500">{t.warningsDrawer.warnings}</p>
             </div>
             <div>
-              <p className="font-semibold text-sky-300 tabular-nums">{summary.info}</p>
-              <p className="text-[10px] text-slate-500">notes</p>
+              <p className="font-semibold text-stamp-info tabular-nums">{summary.info}</p>
+              <p className="text-[10px] text-slate-500">{t.warningsDrawer.notes}</p>
             </div>
           </div>
         </div>
@@ -278,9 +273,9 @@ export default function WarningsDrawer() {
               key={entry.id}
               type="button"
               onClick={() => setFilter(entry.id)}
-              className={`flex-1 rounded-lg px-2 py-1.5 text-[11px] font-medium transition ${
+              className={`flex-1 rounded-sm px-2 py-1.5 text-[11px] font-medium transition ${
                 filter === entry.id
-                  ? "bg-cyan-400/15 text-cyan-200 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.3)]"
+                  ? "bg-marigold/15 text-marigold-light shadow-[inset_0_0_0_1px_rgba(217,154,63,0.3)]"
                   : "text-slate-400 hover:bg-white/5"
               }`}
             >
@@ -301,18 +296,18 @@ export default function WarningsDrawer() {
                 /* clipboard unavailable — silently skip */
               }
             }}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-[11px] font-medium text-slate-300 transition hover:border-cyan-400/40 hover:text-cyan-200 disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-sm border border-hairline/20 bg-white/5 px-2 py-1.5 text-[11px] font-medium text-slate-300 transition hover:border-marigold/40 hover:text-marigold-light disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Copy className="h-3.5 w-3.5" />
-            Copy {fixableCount} fix{fixableCount === 1 ? "" : "es"}
+            {t.warningsDrawer.copyFixes(fixableCount)}
           </button>
           <button
             type="button"
             onClick={exportReport}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-[11px] font-medium text-slate-300 transition hover:border-cyan-400/40 hover:text-cyan-200"
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-sm border border-hairline/20 bg-white/5 px-2 py-1.5 text-[11px] font-medium text-slate-300 transition hover:border-marigold/40 hover:text-marigold-light"
           >
             <Download className="h-3.5 w-3.5" />
-            Export report
+            {t.warningsDrawer.exportReport}
           </button>
         </div>
       </div>
@@ -320,14 +315,12 @@ export default function WarningsDrawer() {
       <div className="scrollbar-thin flex-1 space-y-2 overflow-y-auto px-4 py-3">
         {warnings.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <ShieldCheck className="mb-3 h-8 w-8 text-emerald-400/60" />
+            <ShieldCheck className="mb-3 h-8 w-8 text-stamp-added/60" />
             <p className="text-sm font-medium text-slate-300">
-              {graph.warnings.length === 0 ? "No issues detected" : "Nothing in this filter"}
+              {graph.warnings.length === 0 ? t.warningsDrawer.emptyNoIssues : t.warningsDrawer.emptyFilter}
             </p>
             <p className="mt-1 max-w-[16rem] text-xs text-slate-500">
-              {graph.warnings.length === 0
-                ? "Every foreign key resolves, matches its parent's type and is indexed."
-                : "Try a different severity filter."}
+              {graph.warnings.length === 0 ? t.warningsDrawer.emptyNoIssuesSub : t.warningsDrawer.emptyFilterSub}
             </p>
           </div>
         ) : (
@@ -335,9 +328,9 @@ export default function WarningsDrawer() {
         )}
 
         {graph.parseNotes.length > 0 && (
-          <div className="mt-4 rounded-xl border border-white/8 bg-white/[0.02] px-3 py-2.5">
+          <div className="mt-4 rounded-sm border border-hairline/15 bg-white/[0.02] px-3 py-2.5">
             <p className="mb-1.5 text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
-              Parser notes
+              {t.warningsDrawer.parserNotes}
             </p>
             <ul className="space-y-1">
               {graph.parseNotes.map((note) => (

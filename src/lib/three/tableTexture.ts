@@ -205,21 +205,19 @@ export function createTableNameTexture(table: Table): THREE.CanvasTexture {
   ctx.textAlign = "center";
 
   const centerY = canvas.height / 2;
-  ctx.font = font(SANS, Math.round(0.62 * scale));
+  ctx.font = font(SANS, Math.round(0.82 * scale));
   ctx.fillStyle = "#f8fafc";
   ctx.fillText(
     truncate(ctx, table.name, canvas.width * 0.94),
     canvas.width / 2,
-    centerY - 0.14 * scale,
+    centerY - 0.18 * scale,
   );
 
-  ctx.font = font(SANS, Math.round(0.3 * scale));
+  ctx.font = font(SANS, Math.round(0.4 * scale));
   ctx.fillStyle = accent;
-  ctx.fillText(
-    table.warnings.length > 0 ? `⚠ ${table.warnings.length}` : `${table.columns.length} cols`,
-    canvas.width / 2,
-    centerY + 0.44 * scale,
-  );
+  const subtitle =
+    table.warnings.length > 0 ? `⚠ ${table.warnings.length}` : `${table.columns.length} cols`;
+  ctx.fillText(truncate(ctx, subtitle, canvas.width * 0.94), canvas.width / 2, centerY + 0.56 * scale);
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;

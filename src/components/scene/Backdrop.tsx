@@ -13,8 +13,8 @@ export default function Backdrop() {
 
   return (
     <>
-      <color attach="background" args={["#04060d"]} />
-      <fogExp2 attach="fog" args={["#04060d", 0.0075]} />
+      <color attach="background" args={["#0a0e1a"]} />
+      <fogExp2 attach="fog" args={["#0a0e1a", 0.0075]} />
 
       <ambientLight intensity={0.55} />
       <hemisphereLight args={["#67e8f9", "#0b1220", 0.45]} />

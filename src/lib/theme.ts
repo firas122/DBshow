@@ -30,19 +30,20 @@ export const DIFF_COLOR: Record<DiffStatus, string> = {
   modified: "#a78bfa",
 };
 
+/** Tailwind class fragments for diff-tinted DOM chrome — ink stamps, not neon pills. */
 export const DIFF_CLASSES: Record<
   DiffStatus,
   { text: string; border: string; bg: string }
 > = {
-  added: { text: "text-emerald-300", border: "border-emerald-400/40", bg: "bg-emerald-500/10" },
-  removed: { text: "text-rose-300", border: "border-rose-400/40", bg: "bg-rose-500/10" },
-  modified: { text: "text-violet-300", border: "border-violet-400/40", bg: "bg-violet-500/10" },
+  added: { text: "text-stamp-added", border: "border-stamp-added/40", bg: "bg-stamp-added/10" },
+  removed: { text: "text-stamp-removed", border: "border-stamp-removed/40", bg: "bg-stamp-removed/10" },
+  modified: { text: "text-stamp-modified", border: "border-stamp-modified/40", bg: "bg-stamp-modified/10" },
 };
 
 export const SEVERITY_COLOR: Record<WarningSeverity, string> = {
-  error: PALETTE.error,
-  warning: PALETTE.warning,
-  info: "#38bdf8",
+  error: "#b85c52",
+  warning: "#ad8a42",
+  info: "#5b7fa6",
 };
 
 export const SEVERITY_LABEL: Record<WarningSeverity, string> = {
@@ -51,27 +52,27 @@ export const SEVERITY_LABEL: Record<WarningSeverity, string> = {
   info: "Note",
 };
 
-/** Tailwind class fragments for severity-tinted DOM chrome. */
+/** Tailwind class fragments for severity-tinted DOM chrome — desaturated ink stamps. */
 export const SEVERITY_CLASSES: Record<
   WarningSeverity,
   { text: string; border: string; bg: string; dot: string }
 > = {
   error: {
-    text: "text-rose-300",
-    border: "border-rose-400/40",
-    bg: "bg-rose-500/10",
-    dot: "bg-rose-400",
+    text: "text-stamp-error",
+    border: "border-stamp-error/40",
+    bg: "bg-stamp-error/10",
+    dot: "bg-stamp-error",
   },
   warning: {
-    text: "text-amber-300",
-    border: "border-amber-400/40",
-    bg: "bg-amber-500/10",
-    dot: "bg-amber-400",
+    text: "text-stamp-warning",
+    border: "border-stamp-warning/40",
+    bg: "bg-stamp-warning/10",
+    dot: "bg-stamp-warning",
   },
   info: {
-    text: "text-sky-300",
-    border: "border-sky-400/40",
-    bg: "bg-sky-500/10",
-    dot: "bg-sky-400",
+    text: "text-stamp-info",
+    border: "border-stamp-info/40",
+    bg: "bg-stamp-info/10",
+    dot: "bg-stamp-info",
   },
 };

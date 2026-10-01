@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { AlertCircle, AlertTriangle, ArrowRight, Info, ShieldCheck, Wrench } from "lucide-react";
 
+import { useT } from "@/lib/i18n/useT";
 import { SEVERITY_CLASSES } from "@/lib/theme";
 import { useSchemaStore } from "@/state/useSchemaStore";
 import type { SchemaWarning, WarningSeverity } from "@/lib/types";
@@ -33,6 +34,7 @@ function weightedOrder(warnings: SchemaWarning[]): SchemaWarning[] {
 }
 
 function TickerChip({ warning }: { warning: SchemaWarning }) {
+  const t = useT();
   const focusTable = useSchemaStore((state) => state.focusTable);
   const highlightRelation = useSchemaStore((state) => state.highlightRelation);
   const openHealth = useSchemaStore((state) => state.openHealth);
@@ -46,7 +48,7 @@ function TickerChip({ warning }: { warning: SchemaWarning }) {
   return (
     <button
       type="button"
-      title="Click to inspect · double-click to mute"
+      title={t.ticker.tooltip}
       onClick={() => {
         if (clickTimer.current) return;
         clickTimer.current = window.setTimeout(() => {
@@ -63,20 +65,25 @@ function TickerChip({ warning }: { warning: SchemaWarning }) {
         }
         toggleMuteWarning(warning.id);
       }}
-      className={`flex shrink-0 items-center gap-2 rounded-lg border px-3 py-1.5 text-left transition hover:bg-white/[0.06] ${classes.border} bg-white/[0.03]`}
+      className={`group flex shrink-0 items-stretch overflow-hidden rounded-sm border bg-ink-raised/80 text-left transition hover:bg-white/[0.05] ${classes.border}`}
     >
-      <Icon className={`h-3.5 w-3.5 shrink-0 ${classes.text}`} />
-      <span className="max-w-[15rem] truncate text-[12px] font-medium text-slate-200">
-        {warning.title}
+      <span className="flex items-center gap-1.5 border-r border-dashed border-current/25 px-2.5 py-1.5">
+        <Icon className={`h-3.5 w-3.5 shrink-0 ${classes.text}`} />
+        <span className="max-w-[13rem] truncate text-[12px] font-medium text-slate-200">
+          {warning.title}
+        </span>
       </span>
-      <ArrowRight className="h-3 w-3 shrink-0 text-slate-600" />
-      <Wrench className="h-3 w-3 shrink-0 text-slate-500" />
-      <span className="max-w-[20rem] truncate font-mono text-[11px] text-slate-400">{remedy}</span>
+      <span className="flex items-center gap-1.5 px-2.5 py-1.5">
+        <Wrench className="h-3 w-3 shrink-0 text-slate-500" />
+        <span className="max-w-[20rem] truncate font-mono text-[11px] text-slate-400">{remedy}</span>
+        <ArrowRight className="h-3 w-3 shrink-0 text-slate-600 opacity-0 transition group-hover:opacity-100" />
+      </span>
     </button>
   );
 }
 
 export default function IssueTicker() {
+  const t = useT();
   const graph = useSchemaStore((state) => state.graph);
   const drawer = useSchemaStore((state) => state.drawer);
   const mutedWarningIds = useSchemaStore((state) => state.mutedWarningIds);
@@ -96,13 +103,11 @@ export default function IssueTicker() {
   if (!graph) return null;
 
   return (
-    <div className="glass pointer-events-auto absolute inset-x-0 bottom-0 z-20 h-11 overflow-hidden border-t">
+    <div className="panel pointer-events-auto absolute inset-x-0 bottom-0 z-20 h-11 overflow-hidden border-t">
       {visible.length === 0 ? (
-        <div className="flex h-full items-center justify-center gap-2 text-[12px] text-emerald-300">
+        <div className="flex h-full items-center justify-center gap-2 text-[12px] text-stamp-added">
           <ShieldCheck className="h-3.5 w-3.5" />
-          {graph.warnings.length === 0
-            ? "All relations look healthy — no issues detected."
-            : "Every issue here is muted — double-click a warning in the Health drawer to bring it back."}
+          {graph.warnings.length === 0 ? t.ticker.allHealthy : t.ticker.allMuted}
         </div>
       ) : (
         <div

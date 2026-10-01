@@ -15,6 +15,7 @@ import {
   Zap,
 } from "lucide-react";
 
+import { useT } from "@/lib/i18n/useT";
 import { SEVERITY_CLASSES } from "@/lib/theme";
 import { useSchemaStore, findTable, relationsForTable } from "@/state/useSchemaStore";
 import type { Relation } from "@/lib/types";
@@ -26,6 +27,7 @@ const SEVERITY_ICON = {
 } as const;
 
 function RelationRow({ relation, direction }: { relation: Relation; direction: "out" | "in" }) {
+  const t = useT();
   const focusTable = useSchemaStore((state) => state.focusTable);
   const highlightRelation = useSchemaStore((state) => state.highlightRelation);
   const hoverRelation = useSchemaStore((state) => state.hoverRelation);
@@ -35,10 +37,10 @@ function RelationRow({ relation, direction }: { relation: Relation; direction: "
 
   const tone =
     relation.health === "error"
-      ? "text-rose-300"
+      ? "text-stamp-error"
       : relation.health === "warning"
-        ? "text-amber-300"
-        : "text-cyan-300";
+        ? "text-stamp-warning"
+        : "text-[#22d3ee]";
 
   return (
     <button
@@ -49,7 +51,7 @@ function RelationRow({ relation, direction }: { relation: Relation; direction: "
         highlightRelation(relation.id);
         focusTable(otherTable);
       }}
-      className="flex w-full items-center gap-2 rounded-lg border border-white/8 bg-white/[0.02] px-2.5 py-2 text-left transition hover:border-cyan-400/30 hover:bg-cyan-400/5"
+      className="flex w-full items-center gap-2 rounded-sm border border-hairline/15 bg-white/[0.02] px-2.5 py-2 text-left transition hover:border-marigold/30 hover:bg-marigold/5"
     >
       <Icon className={`h-3.5 w-3.5 shrink-0 ${tone}`} />
       <span className="min-w-0 flex-1 font-mono text-[11px] text-slate-300">
@@ -62,13 +64,13 @@ function RelationRow({ relation, direction }: { relation: Relation; direction: "
         </span>
       </span>
       {relation.kind === "implicit" && (
-        <span className="shrink-0 rounded bg-amber-500/15 px-1 py-px text-[9px] font-medium text-amber-300">
-          suggested
+        <span className="shrink-0 rounded-sm bg-stamp-warning/15 px-1 py-px text-[9px] font-medium text-stamp-warning">
+          {t.inspector.badges.suggested}
         </span>
       )}
       {relation.dangling && (
-        <span className="shrink-0 rounded bg-rose-500/15 px-1 py-px text-[9px] font-medium text-rose-300">
-          dangling
+        <span className="shrink-0 rounded-sm bg-stamp-error/15 px-1 py-px text-[9px] font-medium text-stamp-error">
+          {t.inspector.badges.dangling}
         </span>
       )}
     </button>
@@ -76,6 +78,7 @@ function RelationRow({ relation, direction }: { relation: Relation; direction: "
 }
 
 export default function TableInspector() {
+  const t = useT();
   const graph = useSchemaStore((state) => state.graph);
   const drawer = useSchemaStore((state) => state.drawer);
   const selectedTableId = useSchemaStore((state) => state.selectedTableId);
@@ -94,31 +97,31 @@ export default function TableInspector() {
   const explicitIndexes = table.indexes.filter((index) => !index.isImplicit);
 
   return (
-    <aside className="animate-drawer-in glass pointer-events-auto absolute top-0 right-0 bottom-0 z-30 flex w-full max-w-[24rem] flex-col border-l">
-      <header className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-3.5">
+    <aside className="animate-sheet-in panel pointer-events-auto absolute top-0 right-0 bottom-0 z-30 flex w-full max-w-[24rem] flex-col border-l">
+      <header className="flex items-start justify-between gap-3 border-b border-hairline/15 px-4 py-3.5">
         <div className="min-w-0">
           <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-100">
-            <Table2 className="h-4 w-4 text-cyan-300" />
+            <Table2 className="h-4 w-4 text-marigold-light" />
             <span className="truncate font-mono">{table.name}</span>
           </h2>
           <p className="mt-0.5 text-xs text-slate-400">
-            {table.columns.length} columns · {links.outgoing.length} out · {links.incoming.length} in
+            {t.inspector.summary(table.columns.length, links.outgoing.length, links.incoming.length)}
           </p>
         </div>
         <div className="flex shrink-0 gap-1">
           <button
             type="button"
             onClick={() => focusTable(table.id)}
-            aria-label="Focus camera on table"
-            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-white/10 hover:text-cyan-300"
+            aria-label={t.inspector.focusAria}
+            className="rounded-sm p-1.5 text-slate-400 transition hover:bg-white/10 hover:text-marigold-light"
           >
             <Crosshair className="h-4 w-4" />
           </button>
           <button
             type="button"
             onClick={closeDrawer}
-            aria-label="Close inspector"
-            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-white/10 hover:text-slate-100"
+            aria-label={t.inspector.closeAria}
+            className="rounded-sm p-1.5 text-slate-400 transition hover:bg-white/10 hover:text-slate-100"
           >
             <X className="h-4 w-4" />
           </button>
@@ -127,9 +130,9 @@ export default function TableInspector() {
 
       <div className="scrollbar-thin flex-1 overflow-y-auto">
         {table.warnings.length > 0 && (
-          <section className="border-b border-white/10 px-4 py-3">
+          <section className="border-b border-hairline/15 px-4 py-3">
             <p className="mb-2 text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
-              Warnings
+              {t.inspector.sections.warnings}
             </p>
             <div className="space-y-1.5">
               {table.warnings.map((warning) => {
@@ -140,7 +143,7 @@ export default function TableInspector() {
                     key={warning.id}
                     type="button"
                     onClick={() => openHealth(warning.id)}
-                    className={`flex w-full items-start gap-2 rounded-lg border px-2.5 py-2 text-left transition hover:brightness-125 ${classes.border} ${classes.bg}`}
+                    className={`flex w-full items-start gap-2 rounded-sm border px-2.5 py-2 text-left transition hover:brightness-125 ${classes.border} ${classes.bg}`}
                   >
                     <Icon className={`mt-px h-3.5 w-3.5 shrink-0 ${classes.text}`} />
                     <span className="min-w-0 flex-1">
@@ -158,21 +161,21 @@ export default function TableInspector() {
           </section>
         )}
 
-        <section className="border-b border-white/10 px-4 py-3">
+        <section className="border-b border-hairline/15 px-4 py-3">
           <p className="mb-2 text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
-            Columns
+            {t.inspector.sections.columns}
           </p>
           <div className="space-y-0.5">
             {table.columns.map((column) => (
               <div
                 key={column.name}
-                className="flex items-center gap-2 rounded-md px-1.5 py-1.5 transition hover:bg-white/5"
+                className="flex items-center gap-2 rounded-sm px-1.5 py-1.5 transition hover:bg-white/5"
               >
                 <span className="w-4 shrink-0">
                   {column.isPrimaryKey ? (
-                    <KeyRound className="h-3.5 w-3.5 text-amber-400" />
+                    <KeyRound className="h-3.5 w-3.5 text-[#fbbf24]" />
                   ) : column.isForeignKey ? (
-                    <Link2 className="h-3.5 w-3.5 text-cyan-400" />
+                    <Link2 className="h-3.5 w-3.5 text-[#22d3ee]" />
                   ) : (
                     <span className="ml-1 block h-1 w-1 rounded-full bg-slate-600" />
                   )}
@@ -180,9 +183,9 @@ export default function TableInspector() {
                 <span
                   className={`min-w-0 flex-1 truncate font-mono text-[12px] ${
                     column.isPrimaryKey
-                      ? "font-semibold text-amber-200"
+                      ? "font-semibold text-[#fbbf24]"
                       : column.isForeignKey
-                        ? "text-cyan-200"
+                        ? "text-[#67e0f2]"
                         : "text-slate-300"
                   }`}
                 >
@@ -190,15 +193,15 @@ export default function TableInspector() {
                 </span>
                 {column.isForeignKey && !column.isIndexed && (
                   <span
-                    title="Foreign key without a supporting index"
-                    className="shrink-0 rounded bg-amber-500/15 px-1 py-px text-[9px] font-medium text-amber-300"
+                    title={t.inspector.badges.noIndex}
+                    className="shrink-0 rounded-sm bg-stamp-warning/15 px-1 py-px text-[9px] font-medium text-stamp-warning"
                   >
-                    no idx
+                    {t.inspector.badges.noIndex}
                   </span>
                 )}
                 {!column.isNullable && (
                   <span className="shrink-0 text-[9px] font-medium tracking-wide text-slate-500">
-                    NOT NULL
+                    {t.inspector.badges.notNull}
                   </span>
                 )}
                 <span className="shrink-0 font-mono text-[10px] text-slate-500">
@@ -210,9 +213,9 @@ export default function TableInspector() {
         </section>
 
         {(links.outgoing.length > 0 || links.incoming.length > 0) && (
-          <section className="border-b border-white/10 px-4 py-3">
+          <section className="border-b border-hairline/15 px-4 py-3">
             <p className="mb-2 text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
-              Relationships
+              {t.inspector.sections.relationships}
             </p>
             <div className="space-y-1.5">
               {links.outgoing.map((relation) => (
@@ -229,13 +232,13 @@ export default function TableInspector() {
           <section className="px-4 py-3">
             <p className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
               <Zap className="h-3 w-3" />
-              Indexes
+              {t.inspector.sections.indexes}
             </p>
             <div className="space-y-1">
               {explicitIndexes.map((index) => (
                 <div
                   key={index.name}
-                  className="flex items-center gap-2 rounded-lg border border-white/8 bg-white/[0.02] px-2.5 py-1.5"
+                  className="flex items-center gap-2 rounded-sm border border-hairline/15 bg-white/[0.02] px-2.5 py-1.5"
                 >
                   <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-slate-300">
                     {index.name}
@@ -244,8 +247,8 @@ export default function TableInspector() {
                     ({index.columns.join(", ")})
                   </span>
                   {index.isUnique && (
-                    <span className="rounded bg-cyan-500/15 px-1 py-px text-[9px] font-medium text-cyan-300">
-                      unique
+                    <span className="rounded-sm bg-[#22d3ee]/15 px-1 py-px text-[9px] font-medium text-[#67e0f2]">
+                      {t.inspector.badges.unique}
                     </span>
                   )}
                 </div>
