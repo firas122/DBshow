@@ -2,6 +2,7 @@
   "name": "dbshow-3d",
   "version": "1.0.0",
   "private": true,
+  "license": "MIT",
   "description": "Interactive animated 3D database schema visualizer with automated relationship linting.",
   "scripts": {
     "dev": "next dev",

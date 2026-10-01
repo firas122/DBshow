@@ -195,3 +195,7 @@ around the sphere as you orbit.
 union `SchemaGraph` (every table/relation from both, tagged `diffStatus`) rather than a
 parallel rendering mode — `TableNode3D` and `RelationLine3D` just read that tag to pick a
 colour, the same way they already read health status.
+
+## License
+
+MIT © 2026 firas122 — see [LICENSE](./LICENSE).
