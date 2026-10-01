@@ -432,11 +432,11 @@ function ImportDrawer() {
 function Hero() {
   const t = useT();
   return (
-    <div className="pointer-events-auto absolute inset-0 z-40 flex items-center justify-center overflow-y-auto bg-ink/90 px-6 py-10">
-      <div className="absolute top-4 right-4">
+    <div className="pointer-events-auto absolute inset-0 z-40 flex overflow-y-auto bg-ink/90 px-6 py-10">
+      <div className="fixed top-4 right-4 z-10">
         <LocaleToggle variant="hero" />
       </div>
-      <div className="animate-rise-in w-full max-w-2xl">
+      <div className="animate-rise-in m-auto w-full max-w-2xl">
         <div className="mb-7 text-center">
           <div className="mb-4 inline-flex items-center gap-2 rounded-sm border border-marigold/25 bg-marigold/10 px-3 py-1 text-[11px] font-medium text-marigold-light">
             <Sparkles className="h-3 w-3" />
