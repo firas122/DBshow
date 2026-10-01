@@ -4,6 +4,17 @@ Notable changes to DBShow, newest first.
 
 ## Unreleased
 
+- **Security:** hardened the URL-loading proxy (`/api/fetch-schema`). Redirects
+  are now followed by hand and every hop is re-checked; the address a
+  hostname resolves to is validated at connect time (closing DNS-rebinding
+  and "public name pointing at 127.0.0.1" bypasses); IPv4-mapped and other
+  IPv6 forms of private addresses are blocked; and the response is capped
+  while streaming instead of after it is fully buffered.
+- Fixed legitimate hosts whose names start with `fc` or `fd` (for example
+  `fcc.gov`) being rejected as private IPv6 addresses.
+- Added `scripts/check-ip-guard.mjs`, a dependency-free check for the
+  address-blocking rules (`node --experimental-strip-types scripts/check-ip-guard.mjs`).
+
 - Slowed the issue ticker (roughly 2× the time per item) — it was scrolling
   past faster than it could be read.
 - Added two sample schemas: **SaaS Platform** (29 tables, fully healthy —
