@@ -85,6 +85,21 @@ body {
   }
 }
 
+@keyframes ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-ticker-scroll {
+    animation-play-state: paused !important;
+  }
+}
+
 .animate-drawer-in {
   animation: drawer-in 0.26s cubic-bezier(0.2, 0.8, 0.3, 1) both;
 }

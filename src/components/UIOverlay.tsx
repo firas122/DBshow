@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 
 import FileUpload from "@/components/FileUpload";
+import IssueTicker from "@/components/IssueTicker";
 import TableInspector from "@/components/TableInspector";
 import WarningsDrawer from "@/components/WarningsDrawer";
 import { LAYOUT_LABELS, type LayoutMode } from "@/lib/graph/layouts";
@@ -373,17 +374,19 @@ export default function UIOverlay() {
         </div>
       </header>
 
-      <div className="absolute bottom-4 left-4">
+      <div className="absolute bottom-16 left-4">
         <Legend />
       </div>
 
-      <div className="glass pointer-events-auto absolute right-4 bottom-4 hidden rounded-xl border px-3 py-2 text-[11px] text-slate-500 lg:block">
+      <div className="glass pointer-events-auto absolute right-4 bottom-16 hidden rounded-xl border px-3 py-2 text-[11px] text-slate-500 lg:block">
         Drag to orbit · scroll to zoom · click a table to focus · press{" "}
         <kbd className="rounded border border-white/15 bg-white/5 px-1 font-mono text-slate-400">
           /
         </kbd>{" "}
         to search
       </div>
+
+      <IssueTicker />
 
       {status === "loading" && (
         <div className="glass pointer-events-auto absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2.5 rounded-xl border px-4 py-3">
