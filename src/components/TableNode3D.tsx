@@ -18,7 +18,7 @@ import {
   SHELL_VERTEX_SHADER,
   createShellUniforms,
 } from "@/lib/three/shellMaterial";
-import { HEALTH_COLOR, PALETTE } from "@/lib/theme";
+import { DIFF_COLOR, HEALTH_COLOR, PALETTE } from "@/lib/theme";
 import { tableHealth } from "@/lib/validators/schemaLinter";
 import { useSchemaStore } from "@/state/useSchemaStore";
 import type { Table } from "@/lib/types";
@@ -51,7 +51,7 @@ export default function TableNode3D({ table, adjacency }: TableNode3DProps) {
   const size = useMemo(() => textBlockSize(table), [table]);
   const radius = useMemo(() => nodeRadius(table), [table]);
   const health = useMemo(() => tableHealth(table), [table]);
-  const accent = HEALTH_COLOR[health];
+  const accent = table.diffStatus ? DIFF_COLOR[table.diffStatus] : HEALTH_COLOR[health];
 
   const texture = useMemo(() => createTableTexture(table), [table]);
   const nameTexture = useMemo(() => createTableNameTexture(table), [table]);
@@ -106,11 +106,12 @@ export default function TableNode3D({ table, adjacency }: TableNode3DProps) {
     scratch.color.copy(selected ? selectionColor : accentColor);
     const blend = 1 - Math.exp(-8 * delta);
 
+    const baseOpacity = table.diffStatus === "removed" ? 0.3 : 0.5;
     const shell = shellRef.current?.material as THREE.ShaderMaterial | undefined;
     if (shell) {
       shell.uniforms.uOpacity.value = damp(
         shell.uniforms.uOpacity.value,
-        dimmed ? HIDDEN_OPACITY : emphasis ? 1 : 0.5,
+        dimmed ? HIDDEN_OPACITY : emphasis ? 1 : baseOpacity,
         8,
         delta,
       );
@@ -189,7 +190,9 @@ export default function TableNode3D({ table, adjacency }: TableNode3DProps) {
     event.stopPropagation();
     const store = useSchemaStore.getState();
     store.focusTable(table.id);
-    store.selectTable(table.id);
+    // A "removed" diff ghost doesn't exist in the real graph the inspector
+    // reads from — selecting it would silently blank the drawer.
+    if (table.diffStatus !== "removed") store.selectTable(table.id);
   };
 
   const handleBadgeClick = (event: ThreeEvent<MouseEvent>) => {

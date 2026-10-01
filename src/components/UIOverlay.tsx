@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Boxes,
+  Check,
   Columns3,
+  GitCompare,
   Globe,
   Grid3x3,
   KeyRound,
@@ -13,12 +15,15 @@ import {
   Maximize,
   Orbit,
   Search,
+  Share2,
   ShieldAlert,
   Sparkles,
   Upload,
   X,
 } from "lucide-react";
 
+import CompareDrawer from "@/components/CompareDrawer";
+import DiffDrawer from "@/components/DiffDrawer";
 import FileUpload from "@/components/FileUpload";
 import IssueTicker from "@/components/IssueTicker";
 import TableInspector from "@/components/TableInspector";
@@ -26,6 +31,8 @@ import WarningsDrawer from "@/components/WarningsDrawer";
 import { LAYOUT_LABELS, type LayoutMode } from "@/lib/graph/layouts";
 import { summarizeHealth } from "@/lib/validators/schemaLinter";
 import { searchSchema, useSchemaStore } from "@/state/useSchemaStore";
+
+const MUTE_STORAGE_KEY = "dbshow:mutedWarnings";
 
 const LAYOUT_ICONS: Record<LayoutMode, typeof Orbit> = {
   force: Orbit,
@@ -229,6 +236,27 @@ function ImportDrawer() {
   );
 }
 
+function CopyLinkButton() {
+  const [copied, setCopied] = useState(false);
+
+  return (
+    <IconButton
+      label="Copy shareable link"
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(window.location.href);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1600);
+        } catch {
+          setCopied(false);
+        }
+      }}
+    >
+      {copied ? <Check className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}
+    </IconButton>
+  );
+}
+
 function Hero() {
   return (
     <div className="pointer-events-auto absolute inset-0 z-40 flex items-center justify-center overflow-y-auto bg-[#04060d]/80 px-6 py-10 backdrop-blur-sm">
@@ -264,6 +292,8 @@ export default function UIOverlay() {
   const resetView = useSchemaStore((state) => state.resetView);
   const openHealth = useSchemaStore((state) => state.openHealth);
   const openImport = useSchemaStore((state) => state.openImport);
+  const openDiff = useSchemaStore((state) => state.openDiff);
+  const exitCompare = useSchemaStore((state) => state.exitCompare);
   const closeDrawer = useSchemaStore((state) => state.closeDrawer);
   const showParticles = useSchemaStore((state) => state.showParticles);
   const toggleParticles = useSchemaStore((state) => state.toggleParticles);
@@ -271,8 +301,16 @@ export default function UIOverlay() {
   const toggleEdgeLabels = useSchemaStore((state) => state.toggleEdgeLabels);
   const autoRotate = useSchemaStore((state) => state.autoRotate);
   const toggleAutoRotate = useSchemaStore((state) => state.toggleAutoRotate);
+  const compare = useSchemaStore((state) => state.compare);
+  const selectedTableId = useSchemaStore((state) => state.selectedTableId);
+  const focusTable = useSchemaStore((state) => state.focusTable);
+  const selectTable = useSchemaStore((state) => state.selectTable);
+  const shareParams = useSchemaStore((state) => state.shareParams);
+  const mutedWarningIds = useSchemaStore((state) => state.mutedWarningIds);
+  const setMutedWarningIds = useSchemaStore((state) => state.setMutedWarningIds);
 
-  const summary = useMemo(() => (graph ? summarizeHealth(graph) : null), [graph]);
+  const mutedSet = useMemo(() => new Set(mutedWarningIds), [mutedWarningIds]);
+  const summary = useMemo(() => (graph ? summarizeHealth(graph, mutedSet) : null), [graph, mutedSet]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -282,97 +320,181 @@ export default function UIOverlay() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [closeDrawer]);
 
+  // Hydrate muted warnings once on mount, then keep localStorage in sync.
+  const hydrated = useRef(false);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(MUTE_STORAGE_KEY);
+      if (raw) setMutedWarningIds(JSON.parse(raw));
+    } catch {
+      /* ignore unreadable storage */
+    }
+    hydrated.current = true;
+  }, [setMutedWarningIds]);
+
+  useEffect(() => {
+    if (!hydrated.current) return;
+    try {
+      localStorage.setItem(MUTE_STORAGE_KEY, JSON.stringify(mutedWarningIds));
+    } catch {
+      /* ignore unwritable storage */
+    }
+  }, [mutedWarningIds]);
+
+  // A ?table=… param re-focuses the same table once its schema has loaded.
+  // This must run — and set the ref below — before the URL-sync effect that
+  // follows, or that effect would strip the param before it's ever read.
+  const appliedTableParam = useRef(false);
+  useEffect(() => {
+    if (!graph || appliedTableParam.current) return;
+    appliedTableParam.current = true;
+    const tableId = new URLSearchParams(window.location.search).get("table");
+    if (tableId && graph.tables.some((table) => table.id === tableId)) {
+      focusTable(tableId);
+      selectTable(tableId);
+    }
+  }, [graph, focusTable, selectTable]);
+
+  // Keep the address bar reproducing the loaded schema + focused table, so a
+  // copied link reopens the same view.
+  useEffect(() => {
+    if (!graph || !appliedTableParam.current) return;
+    const params = new URLSearchParams();
+    if (shareParams?.kind === "sample") params.set("sample", shareParams.key);
+    else if (shareParams?.kind === "url") params.set("url", shareParams.url);
+    if (selectedTableId) params.set("table", selectedTableId);
+    const query = params.toString();
+    const next = query ? `${window.location.pathname}?${query}` : window.location.pathname;
+    window.history.replaceState(null, "", next);
+  }, [graph, shareParams, selectedTableId]);
+
   if (!graph) return <Hero />;
 
   const issueCount = (summary?.errors ?? 0) + (summary?.warnings ?? 0);
 
   return (
     <div className="pointer-events-none absolute inset-0 z-20">
-      <header className="glass pointer-events-auto absolute top-0 right-0 left-0 flex flex-wrap items-center gap-3 border-b px-4 py-2.5">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <div className="rounded-lg border border-cyan-400/30 bg-cyan-400/10 p-1.5">
-            <Boxes className="h-4 w-4 text-cyan-300" />
-          </div>
-          <div className="min-w-0">
-            <p className="truncate text-[13px] leading-tight font-semibold text-slate-100">
-              {graph.name}
-            </p>
-            <p className="truncate text-[11px] leading-tight text-slate-500">
-              {SOURCE_LABEL[graph.source] ?? graph.source} · {graph.tables.length} tables ·{" "}
-              {graph.relations.length} relations
-            </p>
-          </div>
-        </div>
-
-        <div className="order-3 w-full md:order-none md:ml-4 md:w-auto md:flex-1">
-          <SearchBox />
-        </div>
-
-        <div className="ml-auto flex items-center gap-1.5">
-          <div className="flex rounded-lg border border-white/10 bg-white/5 p-0.5">
-            {(Object.keys(LAYOUT_LABELS) as LayoutMode[]).map((mode) => {
-              const Icon = LAYOUT_ICONS[mode];
-              return (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setLayout(mode)}
-                  title={`${LAYOUT_LABELS[mode]} layout`}
-                  className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium transition ${
-                    layout === mode
-                      ? "bg-cyan-400/15 text-cyan-200"
-                      : "text-slate-400 hover:text-slate-100"
-                  }`}
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                  <span className="hidden lg:inline">{LAYOUT_LABELS[mode]}</span>
-                </button>
-              );
-            })}
+      <div className="absolute inset-x-0 top-0">
+        <header className="glass pointer-events-auto flex flex-wrap items-center gap-3 border-b px-4 py-2.5">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <div className="rounded-lg border border-cyan-400/30 bg-cyan-400/10 p-1.5">
+              <Boxes className="h-4 w-4 text-cyan-300" />
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-[13px] leading-tight font-semibold text-slate-100">
+                {graph.name}
+              </p>
+              <p className="truncate text-[11px] leading-tight text-slate-500">
+                {SOURCE_LABEL[graph.source] ?? graph.source} · {graph.tables.length} tables ·{" "}
+                {graph.relations.length} relations
+              </p>
+            </div>
           </div>
 
-          <IconButton label="Re-run layout" onClick={reflow}>
-            <Grid3x3 className="h-4 w-4" />
-          </IconButton>
-          <IconButton label="Frame all tables" onClick={resetView}>
-            <Maximize className="h-4 w-4" />
-          </IconButton>
-          <IconButton label="Data flow particles" active={showParticles} onClick={toggleParticles}>
-            <Sparkles className="h-4 w-4" />
-          </IconButton>
-          <IconButton label="Edge labels" active={showEdgeLabels} onClick={toggleEdgeLabels}>
-            <Link2 className="h-4 w-4" />
-          </IconButton>
-          <IconButton label="Auto-rotate" active={autoRotate} onClick={toggleAutoRotate}>
-            <Orbit className="h-4 w-4" />
-          </IconButton>
+          <div className="order-3 w-full md:order-none md:ml-4 md:w-auto md:flex-1">
+            <SearchBox />
+          </div>
 
-          <button
-            type="button"
-            onClick={() => openHealth(null)}
-            className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-2 text-[12px] font-medium transition ${
-              (summary?.errors ?? 0) > 0
-                ? "border-rose-400/40 bg-rose-500/15 text-rose-200 hover:bg-rose-500/25"
-                : issueCount > 0
-                  ? "border-amber-400/40 bg-amber-500/15 text-amber-200 hover:bg-amber-500/25"
-                  : "border-emerald-400/30 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20"
-            }`}
-          >
-            <ShieldAlert className="h-4 w-4" />
-            <span className="hidden sm:inline">Health</span>
-            {issueCount > 0 && <span className="tabular-nums">{issueCount}</span>}
-          </button>
+          <div className="ml-auto flex items-center gap-1.5">
+            <div className="flex rounded-lg border border-white/10 bg-white/5 p-0.5">
+              {(Object.keys(LAYOUT_LABELS) as LayoutMode[]).map((mode) => {
+                const Icon = LAYOUT_ICONS[mode];
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setLayout(mode)}
+                    title={`${LAYOUT_LABELS[mode]} layout`}
+                    className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium transition ${
+                      layout === mode
+                        ? "bg-cyan-400/15 text-cyan-200"
+                        : "text-slate-400 hover:text-slate-100"
+                    }`}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    <span className="hidden lg:inline">{LAYOUT_LABELS[mode]}</span>
+                  </button>
+                );
+              })}
+            </div>
 
-          <button
-            type="button"
-            onClick={openImport}
-            className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-2 text-[12px] font-medium text-slate-300 transition hover:border-cyan-400/40 hover:text-cyan-200"
-          >
-            <Upload className="h-4 w-4" />
-            <span className="hidden sm:inline">Load</span>
-          </button>
-        </div>
-      </header>
+            <IconButton label="Re-run layout" onClick={reflow}>
+              <Grid3x3 className="h-4 w-4" />
+            </IconButton>
+            <IconButton label="Frame all tables" onClick={resetView}>
+              <Maximize className="h-4 w-4" />
+            </IconButton>
+            <IconButton label="Data flow particles" active={showParticles} onClick={toggleParticles}>
+              <Sparkles className="h-4 w-4" />
+            </IconButton>
+            <IconButton label="Edge labels" active={showEdgeLabels} onClick={toggleEdgeLabels}>
+              <Link2 className="h-4 w-4" />
+            </IconButton>
+            <IconButton label="Auto-rotate" active={autoRotate} onClick={toggleAutoRotate}>
+              <Orbit className="h-4 w-4" />
+            </IconButton>
+            <IconButton
+              label={compare ? "View schema diff" : "Compare schemas"}
+              active={compare !== null}
+              onClick={openDiff}
+            >
+              <GitCompare className="h-4 w-4" />
+            </IconButton>
+            <CopyLinkButton />
+
+            <button
+              type="button"
+              onClick={() => openHealth(null)}
+              className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-2 text-[12px] font-medium transition ${
+                (summary?.errors ?? 0) > 0
+                  ? "border-rose-400/40 bg-rose-500/15 text-rose-200 hover:bg-rose-500/25"
+                  : issueCount > 0
+                    ? "border-amber-400/40 bg-amber-500/15 text-amber-200 hover:bg-amber-500/25"
+                    : "border-emerald-400/30 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20"
+              }`}
+            >
+              <ShieldAlert className="h-4 w-4" />
+              <span className="hidden sm:inline">Health</span>
+              {issueCount > 0 && <span className="tabular-nums">{issueCount}</span>}
+            </button>
+
+            <button
+              type="button"
+              onClick={openImport}
+              className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-2 text-[12px] font-medium text-slate-300 transition hover:border-cyan-400/40 hover:text-cyan-200"
+            >
+              <Upload className="h-4 w-4" />
+              <span className="hidden sm:inline">Load</span>
+            </button>
+          </div>
+        </header>
+
+        {compare && (
+          <div className="glass pointer-events-auto flex items-center justify-between gap-3 border-b border-violet-400/20 bg-violet-500/[0.06] px-4 py-1.5 text-[11px]">
+            <span className="flex min-w-0 items-center gap-2 truncate text-violet-200">
+              <GitCompare className="h-3.5 w-3.5 shrink-0" />
+              Comparing <strong className="font-semibold">{compare.diff.baselineName}</strong> →{" "}
+              <strong className="font-semibold">{compare.diff.currentName}</strong>
+            </span>
+            <div className="flex shrink-0 items-center gap-3">
+              <button
+                type="button"
+                onClick={openDiff}
+                className="font-medium text-violet-200 underline-offset-2 hover:underline"
+              >
+                View diff
+              </button>
+              <button
+                type="button"
+                onClick={exitCompare}
+                className="font-medium text-slate-400 underline-offset-2 hover:text-slate-200 hover:underline"
+              >
+                Exit
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
 
       <div className="absolute bottom-16 left-4">
         <Legend />
@@ -398,6 +520,8 @@ export default function UIOverlay() {
       <WarningsDrawer />
       <TableInspector />
       <ImportDrawer />
+      <CompareDrawer />
+      <DiffDrawer />
     </div>
   );
 }

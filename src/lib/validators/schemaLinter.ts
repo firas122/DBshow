@@ -473,9 +473,14 @@ export function lintSchema(graph: SchemaGraph): SchemaGraph {
   return graph;
 }
 
-export function summarizeHealth(graph: SchemaGraph): HealthSummary {
+/**
+ * `mutedIds` lets a caller exclude warnings the user has silenced from the
+ * score and counts, without removing them from the graph itself.
+ */
+export function summarizeHealth(graph: SchemaGraph, mutedIds?: Set<string>): HealthSummary {
+  const warnings = mutedIds ? graph.warnings.filter((w) => !mutedIds.has(w.id)) : graph.warnings;
   const summary = { errors: 0, warnings: 0, info: 0, score: 100 };
-  for (const warning of graph.warnings) {
+  for (const warning of warnings) {
     if (warning.severity === "error") summary.errors += 1;
     else if (warning.severity === "warning") summary.warnings += 1;
     else summary.info += 1;
@@ -484,7 +489,7 @@ export function summarizeHealth(graph: SchemaGraph): HealthSummary {
   // Normalise the penalty by schema size so a large schema is not punished for
   // simply having more surface area.
   const surface = Math.max(graph.tables.length + graph.relations.length, 1);
-  const penalty = graph.warnings.reduce((total, w) => total + SEVERITY_WEIGHT[w.severity], 0);
+  const penalty = warnings.reduce((total, w) => total + SEVERITY_WEIGHT[w.severity], 0);
   summary.score = Math.max(0, Math.round(100 - (penalty / surface) * 14));
   return summary;
 }

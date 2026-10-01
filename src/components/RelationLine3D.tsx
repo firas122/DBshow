@@ -8,7 +8,7 @@ import * as THREE from "three";
 import { columnRowOffset, nodeRadius, shellRadiusAtHeight } from "@/lib/graph/geometry";
 import { damp } from "@/lib/three/anim";
 import { nodePosition } from "@/lib/three/nodeRegistry";
-import { HEALTH_COLOR, PALETTE } from "@/lib/theme";
+import { DIFF_COLOR, HEALTH_COLOR, PALETTE } from "@/lib/theme";
 import { useSchemaStore } from "@/state/useSchemaStore";
 import type { Relation, Table } from "@/lib/types";
 
@@ -54,7 +54,12 @@ export default function RelationLine3D({
   const groupRef = useRef<THREE.Group>(null);
 
   const isSelfReference = relation.sourceTable === relation.targetTable;
-  const color = relation.kind === "implicit" ? PALETTE.implicit : HEALTH_COLOR[relation.health];
+  const color = relation.diffStatus
+    ? DIFF_COLOR[relation.diffStatus]
+    : relation.kind === "implicit"
+      ? PALETTE.implicit
+      : HEALTH_COLOR[relation.health];
+  const dashed = relation.kind === "implicit" || relation.diffStatus === "removed";
   const jitter = useMemo(() => hashUnit(relation.id), [relation.id]);
 
   // Height of the column's row within the card, and the shell's horizontal
@@ -231,7 +236,7 @@ export default function RelationLine3D({
         linePoints[i * 3 + 2] = scratch.point.z;
       }
       line.geometry.setPositions(linePoints);
-      if (relation.kind === "implicit") line.computeLineDistances();
+      if (dashed) line.computeLineDistances();
     }
 
     const store = useSchemaStore.getState();
@@ -261,7 +266,7 @@ export default function RelationLine3D({
         10,
         delta,
       );
-      if (relation.kind === "implicit") line.material.dashOffset -= delta * 0.4;
+      if (dashed) line.material.dashOffset -= delta * 0.4;
     }
 
     if (arrowRef.current) {
@@ -330,7 +335,7 @@ export default function RelationLine3D({
         lineWidth={2.2}
         transparent
         opacity={0.62}
-        dashed={relation.kind === "implicit"}
+        dashed={dashed}
         dashScale={2.4}
         dashSize={0.5}
         gapSize={0.34}

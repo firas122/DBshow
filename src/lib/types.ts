@@ -70,6 +70,9 @@ export interface TableIndex {
   isImplicit: boolean;
 }
 
+/** Set when a table/relation is shown as part of a schema diff, not real schema state. */
+export type DiffStatus = "added" | "removed" | "modified";
+
 export interface Table {
   /** Normalised lookup key: lower-cased table name. */
   id: string;
@@ -79,6 +82,8 @@ export interface Table {
   warnings: SchemaWarning[];
   /** Populated by the layout engine: dependency depth from a root table. */
   depth?: number;
+  /** Populated only inside a diff's view graph. */
+  diffStatus?: DiffStatus;
 }
 
 export type RelationKind = "explicit" | "implicit";
@@ -99,6 +104,8 @@ export interface Relation {
   health: HealthStatus;
   /** Set when the target table or column could not be resolved. */
   dangling?: boolean;
+  /** Populated only inside a diff's view graph. */
+  diffStatus?: "added" | "removed";
 }
 
 export type SchemaSource = "sql" | "sqlite" | "json" | "sample";

@@ -5,10 +5,10 @@ import { useEffect, useMemo } from "react";
 import RelationLine3D from "@/components/RelationLine3D";
 import TableNode3D from "@/components/TableNode3D";
 import { clearNodePositions } from "@/lib/three/nodeRegistry";
-import { useSchemaStore } from "@/state/useSchemaStore";
+import { useActiveGraph } from "@/state/useSchemaStore";
 
 export default function SchemaScene() {
-  const graph = useSchemaStore((state) => state.graph);
+  const graph = useActiveGraph();
 
   // Adjacency includes each table itself so hover dimming keeps the hovered
   // card at full strength.

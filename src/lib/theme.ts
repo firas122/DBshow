@@ -1,4 +1,4 @@
-import type { HealthStatus, WarningSeverity } from "@/lib/types";
+import type { DiffStatus, HealthStatus, WarningSeverity } from "@/lib/types";
 
 /** Single source of truth for colours shared between the DOM and the 3D scene. */
 export const PALETTE = {
@@ -21,6 +21,22 @@ export const HEALTH_COLOR: Record<HealthStatus, string> = {
   ok: PALETTE.ok,
   warning: PALETTE.warning,
   error: PALETTE.error,
+};
+
+/** Colours used only inside a schema diff's view graph. */
+export const DIFF_COLOR: Record<DiffStatus, string> = {
+  added: "#34d399",
+  removed: "#fb7185",
+  modified: "#a78bfa",
+};
+
+export const DIFF_CLASSES: Record<
+  DiffStatus,
+  { text: string; border: string; bg: string }
+> = {
+  added: { text: "text-emerald-300", border: "border-emerald-400/40", bg: "bg-emerald-500/10" },
+  removed: { text: "text-rose-300", border: "border-rose-400/40", bg: "bg-rose-500/10" },
+  modified: { text: "text-violet-300", border: "border-violet-400/40", bg: "bg-violet-500/10" },
 };
 
 export const SEVERITY_COLOR: Record<WarningSeverity, string> = {

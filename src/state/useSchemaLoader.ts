@@ -3,7 +3,7 @@
 import { useCallback } from "react";
 
 import { parseFile, parseFromUrl, parseTextSchema } from "@/lib/parsers";
-import { ECOMMERCE_SAMPLE_SQL } from "@/lib/samples/ecommerce";
+import { findSample } from "@/lib/samples";
 import { useSchemaStore } from "@/state/useSchemaStore";
 
 function messageFor(error: unknown): string {
@@ -16,6 +16,8 @@ export function useSchemaLoader() {
   const setLoading = useSchemaStore((state) => state.setLoading);
   const setGraph = useSchemaStore((state) => state.setGraph);
   const setError = useSchemaStore((state) => state.setError);
+  const setShareParams = useSchemaStore((state) => state.setShareParams);
+  const setCompareBaseline = useSchemaStore((state) => state.setCompareBaseline);
 
   const run = useCallback(
     async (task: () => Promise<ReturnType<typeof parseTextSchema>>) => {
@@ -34,18 +36,57 @@ export function useSchemaLoader() {
   );
 
   const loadSample = useCallback(
-    () => run(async () => parseTextSchema(ECOMMERCE_SAMPLE_SQL, "Neon Commerce (sample)")),
-    [run],
+    async (key: string) => {
+      const sample = findSample(key);
+      if (!sample) {
+        setError(`Unknown sample "${key}".`);
+        return false;
+      }
+      const ok = await run(async () => parseTextSchema(sample.sql, sample.name));
+      if (ok) {
+        setShareParams({ kind: "sample", key });
+        setCompareBaseline(sample.compareBaseline ?? null);
+      }
+      return ok;
+    },
+    [run, setCompareBaseline, setError, setShareParams],
   );
 
-  const loadFile = useCallback((file: File) => run(() => parseFile(file)), [run]);
+  const loadFile = useCallback(
+    async (file: File) => {
+      const ok = await run(() => parseFile(file));
+      if (ok) {
+        setShareParams(null);
+        setCompareBaseline(null);
+      }
+      return ok;
+    },
+    [run, setCompareBaseline, setShareParams],
+  );
 
   const loadText = useCallback(
-    (content: string, name = "Pasted schema") => run(async () => parseTextSchema(content, name)),
-    [run],
+    async (content: string, name = "Pasted schema") => {
+      const ok = await run(async () => parseTextSchema(content, name));
+      if (ok) {
+        setShareParams(null);
+        setCompareBaseline(null);
+      }
+      return ok;
+    },
+    [run, setCompareBaseline, setShareParams],
   );
 
-  const loadUrl = useCallback((url: string) => run(() => parseFromUrl(url)), [run]);
+  const loadUrl = useCallback(
+    async (url: string) => {
+      const ok = await run(() => parseFromUrl(url));
+      if (ok) {
+        setShareParams({ kind: "url", url });
+        setCompareBaseline(null);
+      }
+      return ok;
+    },
+    [run, setCompareBaseline, setShareParams],
+  );
 
   return { loadSample, loadFile, loadText, loadUrl };
 }

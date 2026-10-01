@@ -13,6 +13,7 @@ import {
 
 import { ACCEPTED_EXTENSIONS } from "@/lib/parsers";
 import { JSON_SAMPLE_HINT } from "@/lib/samples/ecommerce";
+import { SAMPLES } from "@/lib/samples";
 import { useSchemaLoader } from "@/state/useSchemaLoader";
 import { useSchemaStore } from "@/state/useSchemaStore";
 
@@ -191,25 +192,28 @@ export default function FileUpload({ variant = "hero", onLoaded }: FileUploadPro
         <div className="h-px flex-1 bg-white/10" />
       </div>
 
-      <button
-        type="button"
-        disabled={busy}
-        onClick={async () => finish(await loadSample())}
-        className="group mt-4 flex w-full items-center gap-3 rounded-xl border border-amber-400/25 bg-amber-400/[0.07] px-4 py-3 text-left transition hover:border-amber-400/50 hover:bg-amber-400/[0.12] disabled:opacity-60"
-      >
-        <div className="rounded-lg border border-amber-400/30 bg-amber-400/10 p-2">
-          <Database className="h-4 w-4 text-amber-300" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-1.5 text-sm font-semibold text-amber-200">
-            Load E-Commerce Sample DB
-            <Sparkles className="h-3.5 w-3.5 opacity-70" />
-          </p>
-          <p className="truncate text-xs text-amber-200/60">
-            13 tables with intentional schema warnings to exercise the linter
-          </p>
-        </div>
-      </button>
+      <div className="mt-4 space-y-2">
+        {SAMPLES.map((sample) => (
+          <button
+            key={sample.key}
+            type="button"
+            disabled={busy}
+            onClick={async () => finish(await loadSample(sample.key))}
+            className="group flex w-full items-center gap-3 rounded-xl border border-amber-400/25 bg-amber-400/[0.07] px-4 py-3 text-left transition hover:border-amber-400/50 hover:bg-amber-400/[0.12] disabled:opacity-60"
+          >
+            <div className="rounded-lg border border-amber-400/30 bg-amber-400/10 p-2">
+              <Database className="h-4 w-4 text-amber-300" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="flex items-center gap-1.5 text-sm font-semibold text-amber-200">
+                {sample.label}
+                <Sparkles className="h-3.5 w-3.5 opacity-70" />
+              </p>
+              <p className="truncate text-xs text-amber-200/60">{sample.description}</p>
+            </div>
+          </button>
+        ))}
+      </div>
 
       {error && (
         <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-rose-400/30 bg-rose-500/10 px-3.5 py-3">

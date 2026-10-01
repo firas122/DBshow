@@ -8,11 +8,15 @@ import {
   ChevronRight,
   Copy,
   Crosshair,
+  Download,
+  Eye,
+  EyeOff,
   Info,
   ShieldCheck,
   X,
 } from "lucide-react";
 
+import { buildHealthReportMarkdown, downloadTextFile } from "@/lib/report";
 import { SEVERITY_CLASSES, SEVERITY_LABEL } from "@/lib/theme";
 import { summarizeHealth } from "@/lib/validators/schemaLinter";
 import { useSchemaStore } from "@/state/useSchemaStore";
@@ -34,15 +38,16 @@ const SEVERITY_ICON = {
   info: Info,
 } as const;
 
-type Filter = "all" | WarningSeverity;
+type Filter = "all" | WarningSeverity | "muted";
 
-function CopyButton({ value }: { value: string }) {
+function CopyButton({ value, label = "Copy" }: { value: string; label?: string }) {
   const [copied, setCopied] = useState(false);
 
   return (
     <button
       type="button"
-      onClick={async () => {
+      onClick={async (event) => {
+        event.stopPropagation();
         try {
           await navigator.clipboard.writeText(value);
           setCopied(true);
@@ -54,7 +59,7 @@ function CopyButton({ value }: { value: string }) {
       className="flex items-center gap-1 rounded-md border border-white/10 bg-white/5 px-1.5 py-1 text-[10px] font-medium text-slate-400 transition hover:border-cyan-400/40 hover:text-cyan-300"
     >
       {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-      {copied ? "Copied" : "Copy"}
+      {copied ? "Copied" : label}
     </button>
   );
 }
@@ -64,9 +69,12 @@ function WarningCard({ warning }: { warning: SchemaWarning }) {
   const setActiveWarning = useSchemaStore((state) => state.setActiveWarning);
   const focusTable = useSchemaStore((state) => state.focusTable);
   const highlightRelation = useSchemaStore((state) => state.highlightRelation);
+  const mutedWarningIds = useSchemaStore((state) => state.mutedWarningIds);
+  const toggleMuteWarning = useSchemaStore((state) => state.toggleMuteWarning);
   const ref = useRef<HTMLDivElement>(null);
 
   const expanded = activeWarningId === warning.id;
+  const muted = mutedWarningIds.includes(warning.id);
   const classes = SEVERITY_CLASSES[warning.severity];
   const Icon = SEVERITY_ICON[warning.severity];
 
@@ -82,14 +90,21 @@ function WarningCard({ warning }: { warning: SchemaWarning }) {
   return (
     <div
       ref={ref}
-      className={`overflow-hidden rounded-xl border transition ${
+      className={`overflow-hidden rounded-xl border transition ${muted ? "opacity-50" : ""} ${
         expanded ? `${classes.border} ${classes.bg}` : "border-white/8 bg-white/[0.02] hover:bg-white/[0.05]"
       }`}
     >
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => setActiveWarning(expanded ? null : warning.id)}
-        className="flex w-full items-start gap-2.5 px-3 py-2.5 text-left"
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            setActiveWarning(expanded ? null : warning.id);
+          }
+        }}
+        className="flex w-full cursor-pointer items-start gap-2.5 px-3 py-2.5 text-left"
       >
         <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${classes.text}`} />
         <span className="min-w-0 flex-1">
@@ -102,18 +117,34 @@ function WarningCard({ warning }: { warning: SchemaWarning }) {
             >
               {KIND_LABEL[warning.kind]}
             </span>
+            {muted && (
+              <span className="shrink-0 rounded bg-white/10 px-1.5 py-px text-[10px] font-medium text-slate-400">
+                Muted
+              </span>
+            )}
           </span>
           <span className="mt-0.5 block truncate font-mono text-[11px] text-slate-500">
             {warning.tableIds.join(" · ")}
             {warning.columnName ? ` · ${warning.columnName}` : ""}
           </span>
         </span>
+        <button
+          type="button"
+          title={muted ? "Unmute — bring back into the ticker and score" : "Mute — hide from the ticker and score"}
+          onClick={(event) => {
+            event.stopPropagation();
+            toggleMuteWarning(warning.id);
+          }}
+          className="mt-0.5 shrink-0 rounded p-1 text-slate-500 transition hover:bg-white/10 hover:text-slate-200"
+        >
+          {muted ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+        </button>
         <ChevronRight
           className={`mt-0.5 h-4 w-4 shrink-0 text-slate-500 transition-transform ${
             expanded ? "rotate-90" : ""
           }`}
         />
-      </button>
+      </div>
 
       {expanded && (
         <div className="animate-rise-in space-y-3 border-t border-white/8 px-3 py-3">
@@ -158,25 +189,39 @@ export default function WarningsDrawer() {
   const graph = useSchemaStore((state) => state.graph);
   const drawer = useSchemaStore((state) => state.drawer);
   const closeDrawer = useSchemaStore((state) => state.closeDrawer);
+  const mutedWarningIds = useSchemaStore((state) => state.mutedWarningIds);
   const [filter, setFilter] = useState<Filter>("all");
 
-  const summary = useMemo(() => (graph ? summarizeHealth(graph) : null), [graph]);
-  const warnings = useMemo(
-    () => (graph ? graph.warnings.filter((w) => filter === "all" || w.severity === filter) : []),
-    [graph, filter],
-  );
+  const mutedSet = useMemo(() => new Set(mutedWarningIds), [mutedWarningIds]);
+  // Tab counts stay raw (muting doesn't remove a warning from the list, just
+  // from the ticker and the score below), but the score itself excludes them.
+  const rawSummary = useMemo(() => (graph ? summarizeHealth(graph) : null), [graph]);
+  const summary = useMemo(() => (graph ? summarizeHealth(graph, mutedSet) : null), [graph, mutedSet]);
+  const warnings = useMemo(() => {
+    if (!graph) return [];
+    if (filter === "muted") return graph.warnings.filter((w) => mutedSet.has(w.id));
+    return graph.warnings.filter((w) => filter === "all" || w.severity === filter);
+  }, [graph, filter, mutedSet]);
 
-  if (drawer !== "health" || !graph || !summary) return null;
+  if (drawer !== "health" || !graph || !summary || !rawSummary) return null;
 
   const scoreTone =
     summary.score >= 85 ? "text-emerald-300" : summary.score >= 60 ? "text-amber-300" : "text-rose-300";
 
   const filters: Array<{ id: Filter; label: string; count: number }> = [
     { id: "all", label: "All", count: graph.warnings.length },
-    { id: "error", label: "Errors", count: summary.errors },
-    { id: "warning", label: "Warnings", count: summary.warnings },
-    { id: "info", label: "Notes", count: summary.info },
+    { id: "error", label: "Errors", count: rawSummary.errors },
+    { id: "warning", label: "Warnings", count: rawSummary.warnings },
+    { id: "info", label: "Notes", count: rawSummary.info },
+    { id: "muted", label: "Muted", count: mutedWarningIds.length },
   ];
+
+  const fixableCount = warnings.filter((w) => w.fix).length;
+  const copyAllFixes = () => warnings.filter((w) => w.fix).map((w) => w.fix).join("\n\n");
+  const exportReport = () => {
+    const filename = `${graph.name.replace(/[^a-z0-9_-]+/gi, "_").toLowerCase()}-health-report.md`;
+    downloadTextFile(filename, buildHealthReportMarkdown(graph, mutedSet));
+  };
 
   return (
     <aside className="animate-drawer-in glass pointer-events-auto absolute top-0 right-0 bottom-0 z-30 flex w-full max-w-[26rem] flex-col border-l">
@@ -243,6 +288,32 @@ export default function WarningsDrawer() {
               <span className="ml-1 tabular-nums opacity-60">{entry.count}</span>
             </button>
           ))}
+        </div>
+
+        <div className="mt-2 flex gap-1.5">
+          <button
+            type="button"
+            disabled={fixableCount === 0}
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(copyAllFixes());
+              } catch {
+                /* clipboard unavailable — silently skip */
+              }
+            }}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-[11px] font-medium text-slate-300 transition hover:border-cyan-400/40 hover:text-cyan-200 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <Copy className="h-3.5 w-3.5" />
+            Copy {fixableCount} fix{fixableCount === 1 ? "" : "es"}
+          </button>
+          <button
+            type="button"
+            onClick={exportReport}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-[11px] font-medium text-slate-300 transition hover:border-cyan-400/40 hover:text-cyan-200"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Export report
+          </button>
         </div>
       </div>
 

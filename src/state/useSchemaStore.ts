@@ -2,10 +2,19 @@
 
 import { create } from "zustand";
 
+import { diffSchemas, type SchemaDiff } from "@/lib/diff/schemaDiff";
 import { computeLayout, type LayoutMode, type PositionMap } from "@/lib/graph/layouts";
 import type { Relation, SchemaGraph, Table } from "@/lib/types";
 
-export type DrawerMode = "none" | "health" | "inspector" | "import";
+export type DrawerMode = "none" | "health" | "inspector" | "import" | "compare" | "diff";
+
+/** How the current graph was loaded, so a focused table can round-trip through a URL. */
+export type ShareParams = { kind: "sample"; key: string } | { kind: "url"; url: string } | null;
+
+interface CompareState {
+  diff: SchemaDiff;
+  viewGraph: SchemaGraph;
+}
 
 interface SchemaState {
   graph: SchemaGraph | null;
@@ -31,6 +40,16 @@ interface SchemaState {
   focus: { tableId: string; nonce: number } | null;
   resetNonce: number;
 
+  /** Warnings the user has silenced from the ticker and the health score. */
+  mutedWarningIds: string[];
+
+  /** How the loaded graph can be reproduced from a URL, for shareable links. */
+  shareParams: ShareParams;
+  /** Bundled "before" schema offered by the current sample, if any. */
+  compareBaseline: { sql: string; name: string } | null;
+  /** Active schema comparison, if any — drives the 3D view graph and the Diff drawer. */
+  compare: CompareState | null;
+
   setLoading: () => void;
   setError: (message: string) => void;
   setGraph: (graph: SchemaGraph) => void;
@@ -48,6 +67,8 @@ interface SchemaState {
 
   openHealth: (warningId?: string | null) => void;
   openImport: () => void;
+  openCompare: () => void;
+  openDiff: () => void;
   closeDrawer: () => void;
   setActiveWarning: (warningId: string | null) => void;
   setSearch: (search: string) => void;
@@ -55,6 +76,14 @@ interface SchemaState {
   toggleParticles: () => void;
   toggleEdgeLabels: () => void;
   toggleAutoRotate: () => void;
+
+  toggleMuteWarning: (warningId: string) => void;
+  setMutedWarningIds: (ids: string[]) => void;
+
+  setShareParams: (params: ShareParams) => void;
+  setCompareBaseline: (baseline: { sql: string; name: string } | null) => void;
+  startCompare: (baseline: SchemaGraph) => void;
+  exitCompare: () => void;
 }
 
 export const useSchemaStore = create<SchemaState>((set, get) => ({
@@ -80,6 +109,11 @@ export const useSchemaStore = create<SchemaState>((set, get) => ({
   focus: null,
   resetNonce: 0,
 
+  mutedWarningIds: [],
+  shareParams: null,
+  compareBaseline: null,
+  compare: null,
+
   setLoading: () => set({ status: "loading", error: null }),
 
   setError: (message) => set({ status: "error", error: message }),
@@ -99,6 +133,8 @@ export const useSchemaStore = create<SchemaState>((set, get) => ({
       drawer: "none",
       focus: null,
       resetNonce: state.resetNonce + 1,
+      compareBaseline: null,
+      compare: null,
     })),
 
   clearGraph: () =>
@@ -113,21 +149,25 @@ export const useSchemaStore = create<SchemaState>((set, get) => ({
     }),
 
   // Both of these bump resetNonce so the camera re-frames the new arrangement
-  // instead of staying pointed wherever it was.
+  // instead of staying pointed wherever it was. They lay out whichever graph
+  // is actually on screen — the diff view graph while comparing, else the
+  // real one — so ghost nodes don't lose their position.
   setLayout: (layout) => {
-    const { graph } = get();
+    const { graph, compare } = get();
+    const active = compare?.viewGraph ?? graph;
     set((state) => ({
       layout,
-      positions: graph ? computeLayout(graph, layout) : {},
+      positions: active ? computeLayout(active, layout) : {},
       resetNonce: state.resetNonce + 1,
     }));
   },
 
   reflow: () => {
-    const { graph, layout } = get();
-    if (!graph) return;
+    const { graph, layout, compare } = get();
+    const active = compare?.viewGraph ?? graph;
+    if (!active) return;
     set((state) => ({
-      positions: computeLayout(graph, layout),
+      positions: computeLayout(active, layout),
       resetNonce: state.resetNonce + 1,
     }));
   },
@@ -158,6 +198,8 @@ export const useSchemaStore = create<SchemaState>((set, get) => ({
 
   openHealth: (warningId = null) => set({ drawer: "health", activeWarningId: warningId }),
   openImport: () => set({ drawer: "import" }),
+  openCompare: () => set({ drawer: "compare" }),
+  openDiff: () => set((state) => ({ drawer: state.compare ? "diff" : "compare" })),
   closeDrawer: () => set({ drawer: "none" }),
   setActiveWarning: (warningId) => set({ activeWarningId: warningId }),
   setSearch: (search) => set({ search }),
@@ -165,9 +207,53 @@ export const useSchemaStore = create<SchemaState>((set, get) => ({
   toggleParticles: () => set((state) => ({ showParticles: !state.showParticles })),
   toggleEdgeLabels: () => set((state) => ({ showEdgeLabels: !state.showEdgeLabels })),
   toggleAutoRotate: () => set((state) => ({ autoRotate: !state.autoRotate })),
+
+  toggleMuteWarning: (warningId) =>
+    set((state) => ({
+      mutedWarningIds: state.mutedWarningIds.includes(warningId)
+        ? state.mutedWarningIds.filter((id) => id !== warningId)
+        : [...state.mutedWarningIds, warningId],
+    })),
+  setMutedWarningIds: (ids) => set({ mutedWarningIds: ids }),
+
+  setShareParams: (params) => set({ shareParams: params }),
+  setCompareBaseline: (baseline) => set({ compareBaseline: baseline }),
+
+  startCompare: (baseline) => {
+    const { graph, layout } = get();
+    if (!graph) return;
+    const { diff, viewGraph } = diffSchemas(baseline, graph);
+    set((state) => ({
+      compare: { diff, viewGraph },
+      positions: computeLayout(viewGraph, layout),
+      resetNonce: state.resetNonce + 1,
+      drawer: "diff",
+      selectedTableId: null,
+      highlightedRelationId: null,
+      focus: null,
+    }));
+  },
+
+  exitCompare: () => {
+    const { graph, layout } = get();
+    set((state) => ({
+      compare: null,
+      positions: graph ? computeLayout(graph, layout) : {},
+      resetNonce: state.resetNonce + 1,
+      drawer: "none",
+      focus: null,
+    }));
+  },
 }));
 
 /* ----------------------------- derived helpers ---------------------------- */
+
+/** The graph the 3D scene should render: the diff view graph while comparing, else the real one. */
+export function useActiveGraph(): SchemaGraph | null {
+  const graph = useSchemaStore((state) => state.graph);
+  const compare = useSchemaStore((state) => state.compare);
+  return compare ? compare.viewGraph : graph;
+}
 
 export function relationsForTable(graph: SchemaGraph, tableId: string): {
   outgoing: Relation[];
