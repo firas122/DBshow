@@ -13,8 +13,8 @@ const SEVERITY_ICON = {
   info: Info,
 } as const;
 
-const SECONDS_PER_ITEM = 4;
-const MIN_DURATION = 18;
+const SECONDS_PER_ITEM = 8;
+const MIN_DURATION = 32;
 const DOUBLE_CLICK_WINDOW_MS = 260;
 
 /** Errors repeat more often than notes, so the loop doesn't bury what matters most. */

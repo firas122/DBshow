@@ -1,7 +1,8 @@
 # DBShow — 3D database schema visualiser
 
 Turns a SQL DDL dump, a SQLite file or a JSON schema into an interactive, animated 3D
-diagram, then lints the relationships and flags the ones that look wrong.
+diagram, lints the relationships and flags the ones that look wrong, and can diff two
+versions of a schema to show exactly what a migration changed.
 
 Everything is parsed **in the browser** — schemas are never uploaded. The only server
 code is a small proxy used when you load a schema by URL (browsers can't fetch arbitrary
@@ -11,7 +12,7 @@ origins directly).
 
 ```bash
 npm install     # also copies sql.js into public/sql-wasm/
-npm run dev     # http://localhost:3000
+npm run dev      # http://localhost:3000
 ```
 
 ```bash
@@ -22,8 +23,16 @@ npm run lint
 If `public/sql-wasm/` is ever missing (it's gitignored), restore it with
 `node scripts/copy-sql-wasm.mjs`.
 
-Click **Load E-Commerce Sample DB** to see it working immediately — that schema contains
-one deliberate instance of every defect the linter detects.
+## Sample schemas
+
+Four bundled samples cover different scenarios — pick one from the home screen:
+
+| Sample | Tables | What it shows |
+| --- | --- | --- |
+| E-Commerce | 13 | One deliberate instance of every defect the linter detects |
+| Blog Platform | 5 | A v1 → v2 migration pair — use **Compare schemas** to diff them |
+| SaaS Platform | 29 | A much larger, fully healthy schema — stress-tests layout at scale |
+| Library Catalog | 9 | A normal-sized, fully healthy schema — Health 100, empty ticker |
 
 ## Input formats
 
@@ -58,6 +67,35 @@ explanation, why it matters, and copyable fix DDL.
   a self-referencing hierarchy.
 - **No primary key** *(warning)* and **isolated table** *(note)*.
 
+### Issue ticker
+
+Every warning scrolls across the footer as an issue → fix pair, weighted so errors repeat
+more often than notes. Click a chip to fly to that table and expand it in the Health
+drawer; double-click to mute it (hides it from the ticker and the score, but leaves it
+visible — dimmed — in the Health drawer for later review). Mutes persist in
+`localStorage`. The ticker pauses on hover and while any drawer is open.
+
+### Health drawer
+
+Open it from the **Health** button. Shows the overall score (muted warnings excluded),
+filterable by severity or by "Muted", with **Copy N fixes** (concatenates every visible
+fix into one pasteable script) and **Export report** (downloads a Markdown snapshot).
+
+## Schema diffing
+
+Click **Compare schemas** to diff the loaded schema against an earlier version — the
+bundled baseline a sample ships with (Blog Platform does), an uploaded file, or pasted
+DDL. Added, removed and modified tables and relations are tinted directly in the 3D
+view (green / rose-dashed / violet) and listed with column-level detail in the Diff
+drawer. Implemented in `src/lib/diff/schemaDiff.ts`, which builds a union "view graph"
+tagged with `diffStatus` so the normal rendering path draws it with no special-casing.
+
+## Shareable links
+
+Loading a bundled sample or a URL, then focusing a table, is reflected in the address bar
+as `?sample=`/`?url=` and `&table=`. Copying the link (the share icon in the toolbar) and
+opening it elsewhere reproduces the same schema and focused table.
+
 ## Controls
 
 Drag to orbit, scroll to zoom, click a table to fly to it, click empty space to deselect.
@@ -71,14 +109,18 @@ to a bubble around the graph, and the camera stops short of the poles. Hitting a
 feels like a wall rather than a snap-back — the camera and its target move together.
 
 Colours: gold primary keys, cyan healthy foreign keys, pulsing amber for suspect or
-suggested relations, pulsing red for errors.
+suggested relations, pulsing red for errors. A schema diff overrides this with green
+(added), rose dashed (removed) and violet (modified).
 
 ## Architecture
 
 ```
 src/
+  app/
+    page.tsx                   Reads ?sample=/?url=/?table= on load
+    api/fetch-schema/          URL-loading proxy
   lib/
-    types.ts                  SchemaGraph — the one model everything speaks
+    types.ts                   SchemaGraph — the one model everything speaks
     parsers/
       sqlParser.ts            SQL DDL  -> SchemaGraph
       sqliteParser.ts         SQLite   -> SchemaGraph (sql.js / WASM)
@@ -88,6 +130,9 @@ src/
       finalize.ts             resolves FK targets, derives isForeignKey / isIndexed
       types-util.ts           SQL type -> type family, compatibility rules
     validators/schemaLinter.ts
+    diff/schemaDiff.ts          Two SchemaGraphs -> SchemaDiff + tagged view graph
+    samples/                     Bundled demo schemas (ecommerce, blog, saas, library)
+    report.ts                    Markdown health-report export
     graph/
       geometry.ts             text-block metrics, shell radius, column row offsets
       layouts.ts              force (d3-force-3d), sphere, layered
@@ -100,7 +145,10 @@ src/
     scene/{Backdrop,CameraRig,SchemaScene}.tsx
     TableNode3D.tsx           one table sphere
     RelationLine3D.tsx        one bezier edge + particles + arrowhead
-    FileUpload.tsx, UIOverlay.tsx, WarningsDrawer.tsx, TableInspector.tsx
+    IssueTicker.tsx           scrolling issue/fix ticker along the footer
+    WarningsDrawer.tsx         health score, mute, copy-fixes, export report
+    CompareDrawer.tsx, DiffDrawer.tsx   schema-diff baseline picker + results
+    FileUpload.tsx, UIOverlay.tsx, TableInspector.tsx
   state/                      zustand store + loader hook
 ```
 
@@ -129,3 +177,8 @@ column's row sits at an offset along the camera's *up* axis rather than world Y.
 recomputes its anchors per frame — offset along camera-up by the row height, then out to
 the shell surface by `sqrt(r² - h²)` — so edges stay attached to the right column and slide
 around the sphere as you orbit.
+
+**Schema diffs reuse the normal rendering path.** Comparing two schemas builds a single
+union `SchemaGraph` (every table/relation from both, tagged `diffStatus`) rather than a
+parallel rendering mode — `TableNode3D` and `RelationLine3D` just read that tag to pick a
+colour, the same way they already read health status.

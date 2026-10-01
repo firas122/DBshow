@@ -1,5 +1,7 @@
 import { BLOG_SAMPLE_V1_SQL, BLOG_SAMPLE_V2_SQL } from "@/lib/samples/blog";
 import { ECOMMERCE_SAMPLE_SQL } from "@/lib/samples/ecommerce";
+import { LIBRARY_SAMPLE_SQL } from "@/lib/samples/library";
+import { SAAS_PLATFORM_SAMPLE_SQL } from "@/lib/samples/saasPlatform";
 
 export interface SampleDefinition {
   key: string;
@@ -26,6 +28,20 @@ export const SAMPLES: SampleDefinition[] = [
     sql: BLOG_SAMPLE_V2_SQL,
     name: "Blog Platform v2 (sample)",
     compareBaseline: { sql: BLOG_SAMPLE_V1_SQL, name: "Blog Platform v1 (sample)" },
+  },
+  {
+    key: "saas",
+    label: "Load SaaS Platform Sample",
+    description: "29 tables across auth, projects, billing & support — stress-tests layout at scale",
+    sql: SAAS_PLATFORM_SAMPLE_SQL,
+    name: "SaaS Platform (sample)",
+  },
+  {
+    key: "library",
+    label: "Load Library Catalog Sample",
+    description: "A normal-sized, fully healthy schema — Health 100, nothing in the ticker",
+    sql: LIBRARY_SAMPLE_SQL,
+    name: "Library Catalog (sample)",
   },
 ];
 
