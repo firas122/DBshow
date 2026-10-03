@@ -1,12 +1,17 @@
 /**
- * The DBShow mark: an isometric cube, lit from the upper left, drawn as a
- * hexagon split into three faces.
+ * The DBShow mark: a cluster of spheres — one near, the rest receding — joined
+ * by relation edges. The same thing the app draws, in miniature.
  *
  * Shared by `src/app/icon.tsx` (32px) and `src/app/apple-icon.tsx` (180px) so
  * the two never drift apart. Returned as a plain element rather than a React
  * component because `ImageResponse` renders through satori, which is fussy
  * about anything that isn't a concrete element — in particular it drops
  * fragments inside `<svg>`, so every group below is a real `<g>`.
+ *
+ * Shading is flat-shaded, not gradient-lit: each sphere is three stacked
+ * circles (shadow body, lit face offset toward the light, specular dot).
+ * Satori's gradient support is partial, and three opaque tones survive being
+ * shrunk to 16px better than a gradient does anyway.
  */
 
 const INK = "#0a0e1a";
@@ -17,65 +22,90 @@ const MARIGOLD_DEEP = "#9c6a28";
 /** Everything is laid out in a 100×100 box and scaled by the viewBox. */
 const BOX = 100;
 
-const CX = BOX / 2;
-const TOP_Y = 13; // tip of the cube
-const HALF_W = 34; // half the hexagon's width
-const RISE = 19.6; // vertical drop across half the top face (HALF_W × tan 30°)
-const SIDE = 34; // height of the vertical edges
+/** Light comes from the upper left, as it did on the previous mark. */
+const LIGHT = -Math.SQRT1_2; // cos/sin of 225°, i.e. up and to the left
 
-const MID_Y = TOP_Y + RISE * 2; // where the three faces meet
-const SHOULDER_Y = TOP_Y + RISE; // the two widest points
-const HIP_Y = SHOULDER_Y + SIDE; // bottom corners
-const BOTTOM_Y = MID_Y + SIDE; // lowest point
+/** How far the lit face and the specular dot shift toward the light, in radii. */
+const LIT_SHIFT = 0.15;
+const LIT_RADIUS = 0.82;
+const SPEC_SHIFT = 0.34;
+const SPEC_RADIUS = 0.28;
 
-const TIP = [CX, TOP_Y];
-const SHOULDER_L = [CX - HALF_W, SHOULDER_Y];
-const SHOULDER_R = [CX + HALF_W, SHOULDER_Y];
-const MID = [CX, MID_Y];
-const HIP_L = [CX - HALF_W, HIP_Y];
-const HIP_R = [CX + HALF_W, HIP_Y];
-const BOTTOM = [CX, BOTTOM_Y];
-
-const line = ([x, y]: number[]) => `${x} ${y}`;
-const poly = (...points: number[][]) =>
-  `M ${points.map(line).join(" L ")} Z`;
-
-const TOP_FACE = poly(TIP, SHOULDER_R, MID, SHOULDER_L);
-const LEFT_FACE = poly(SHOULDER_L, MID, BOTTOM, HIP_L);
-const RIGHT_FACE = poly(MID, SHOULDER_R, HIP_R, BOTTOM);
-
-/** The three edges radiating from the point where the faces meet. */
-const SEAMS =
-  `M ${line(SHOULDER_L)} L ${line(MID)} L ${line(SHOULDER_R)}` +
-  ` M ${line(MID)} L ${line(BOTTOM)}`;
+type Sphere = { cx: number; cy: number; r: number };
 
 /**
- * A table row ruled across a side face, parallel to that face's upper edge.
- * `drop` is how far below the edge it sits; `from`/`to` run 0–1 along it.
+ * The near sphere, and the two that recede behind it. Sizes stand in for
+ * distance, which is what gives a flat square some depth.
  */
-function row(face: "left" | "right", drop: number, from: number, to: number) {
-  const at = (t: number): number[] =>
-    face === "left"
-      ? [CX - HALF_W + HALF_W * t, SHOULDER_Y + RISE * t + drop]
-      : [CX + HALF_W * t, MID_Y - RISE * t + drop];
-  return `M ${line(at(from))} L ${line(at(to))}`;
+const NEAR: Sphere = { cx: 36, cy: 64, r: 26 };
+const FAR: Sphere = { cx: 75, cy: 27, r: 15 };
+/** Third node, only drawn at detail sizes — at 16px it degrades to a smudge. */
+const FARTHER: Sphere = { cx: 84, cy: 69, r: 8.5 };
+
+/**
+ * Relation edges run centre to centre and are drawn under the spheres, so only
+ * the span between two surfaces shows. They are marigold rather than ink: the
+ * icon sits on an ink ground, where an ink edge is an invisible edge.
+ */
+const edge = (a: Sphere, b: Sphere) => `M ${a.cx} ${a.cy} L ${b.cx} ${b.cy}`;
+
+function sphere({ cx, cy, r }: Sphere) {
+  const lit = LIGHT * LIT_SHIFT * r;
+  const spec = LIGHT * SPEC_SHIFT * r;
+  return (
+    <g>
+      <circle cx={cx} cy={cy} r={r} fill={MARIGOLD_DEEP} />
+      <circle
+        cx={cx + lit}
+        cy={cy + lit}
+        r={r * LIT_RADIUS}
+        fill={MARIGOLD}
+      />
+      <circle
+        cx={cx + spec}
+        cy={cy + spec}
+        r={r * SPEC_RADIUS}
+        fill={MARIGOLD_LIGHT}
+      />
+    </g>
+  );
 }
 
-const ROWS = [
-  row("left", 10, 0.18, 0.84),
-  row("left", 18.5, 0.18, 0.84),
-  row("left", 27, 0.18, 0.58),
-  row("right", 10, 0.16, 0.82),
-  row("right", 18.5, 0.16, 0.82),
-  row("right", 27, 0.42, 0.82),
+/**
+ * A great circle on the near sphere, seen edge-on: the near half of an ellipse
+ * inscribed in the sphere's silhouette and tilted with it. `TILT` is the
+ * sphere's axial tilt in degrees; `squash` is how narrow the circle appears
+ * (0 = edge-on, 1 = face-on).
+ */
+const TILT = -18;
+
+function greatCircle(axis: "equator" | "meridian", squash: number) {
+  const { cx, cy, r } = NEAR;
+  // The equator exits the silhouette along the tilt; the meridian exits 90° off.
+  const base = axis === "equator" ? 0 : 90;
+  const at = (deg: number) => {
+    const a = ((deg + TILT) * Math.PI) / 180;
+    return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+  };
+  const [x1, y1] = at(base + 180);
+  const [x2, y2] = at(base);
+  const [rx, ry] =
+    axis === "equator" ? [r, r * squash] : [r * squash, r];
+  return `M ${x1} ${y1} A ${rx} ${ry} ${TILT} 0 0 ${x2} ${y2}`;
+}
+
+const GREAT_CIRCLES = [
+  greatCircle("equator", 0.34),
+  greatCircle("meridian", 0.34),
 ].join(" ");
 
 type BrandMarkOptions = {
   /** Rendered size in pixels. */
   size: number;
   /**
-   * Draw the table rows and the node on the top face. They turn to mush below
-   * roughly 64px, so the tab icon leaves them off.
+   * Draw the third, smallest node and the great circles ruled across the near
+   * sphere. Both turn to mush below roughly 64px, so the tab icon leaves them
+   * off and keeps to two spheres and one edge.
    */
   detail?: boolean;
 };
@@ -90,33 +120,33 @@ export function brandMark({ size, detail = false }: BrandMarkOptions) {
       xmlns="http://www.w3.org/2000/svg"
     >
       <g>
-        <path d={TOP_FACE} fill={MARIGOLD_LIGHT} />
-        <path d={LEFT_FACE} fill={MARIGOLD} />
-        <path d={RIGHT_FACE} fill={MARIGOLD_DEEP} />
+        <path
+          d={
+            detail
+              ? `${edge(NEAR, FAR)} ${edge(NEAR, FARTHER)}`
+              : edge(NEAR, FAR)
+          }
+          stroke={MARIGOLD_DEEP}
+          strokeWidth={5}
+          strokeLinecap="round"
+        />
       </g>
+      {sphere(FAR)}
+      {detail ? sphere(FARTHER) : <g />}
+      {sphere(NEAR)}
       {detail ? (
         <g>
           <path
-            d={ROWS}
+            d={GREAT_CIRCLES}
             stroke={INK}
             strokeWidth={2.4}
-            strokeOpacity={0.42}
+            strokeOpacity={0.34}
             strokeLinecap="round"
           />
-          <circle cx={CX} cy={TOP_Y + RISE * 0.9} r={4.6} fill={INK} />
         </g>
       ) : (
         <g />
       )}
-      <g>
-        <path
-          d={SEAMS}
-          stroke={INK}
-          strokeWidth={3.2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </g>
     </svg>
   );
 }
