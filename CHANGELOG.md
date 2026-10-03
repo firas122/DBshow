@@ -4,6 +4,12 @@ Notable changes to DBShow, newest first.
 
 ## Unreleased
 
+- Replaced the app icon. The old table-card glyph turned to mush at 16px, so
+  it is now an isometric cube — three marigold faces split by ink seams,
+  which holds up when shrunk. The tab icon keeps it plain; the 180px touch
+  icon adds table rows on the side faces and a node on the top face. Both
+  sizes are drawn from one shared mark in `src/lib/brandMark.tsx`.
+
 - **Security:** hardened the URL-loading proxy (`/api/fetch-schema`). Redirects
   are now followed by hand and every hop is re-checked; the address a
   hostname resolves to is validated at connect time (closing DNS-rebinding
