@@ -270,8 +270,6 @@ export const useSchemaStore = create<SchemaState>((set, get) => ({
   },
 }));
 
-/* ----------------------------- derived helpers ---------------------------- */
-
 /** The graph the 3D scene should render: the diff view graph while comparing, else the real one. */
 export function useActiveGraph(): SchemaGraph | null {
   const graph = useSchemaStore((state) => state.graph);

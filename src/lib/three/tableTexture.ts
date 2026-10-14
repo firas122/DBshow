@@ -89,7 +89,6 @@ export function createTableTexture(table: Table): THREE.CanvasTexture {
   ctx.shadowColor = "rgba(2, 6, 16, 0.9)";
   ctx.shadowBlur = 0.07 * scale;
 
-  // Table name.
   ctx.textBaseline = "middle";
   ctx.textAlign = "left";
   ctx.fillStyle = "#ffffff";
@@ -98,7 +97,6 @@ export function createTableTexture(table: Table): THREE.CanvasTexture {
   const badgeWidth = table.warnings.length > 0 ? 0.62 * scale : 0.34 * scale;
   ctx.fillText(truncate(ctx, table.name, W - pad * 2 - badgeWidth), pad, nameY);
 
-  // Warning count, or a tick when the table is clean.
   ctx.textAlign = "right";
   if (table.warnings.length > 0) {
     ctx.font = font(SANS, Math.round(0.185 * scale));
@@ -110,7 +108,6 @@ export function createTableTexture(table: Table): THREE.CanvasTexture {
     ctx.fillText("✓", W - pad, nameY);
   }
 
-  // Column rows.
   const columns = table.columns.slice(0, visibleColumns);
   columns.forEach((column, index) => {
     const top = pad + headerH + index * rowH;
